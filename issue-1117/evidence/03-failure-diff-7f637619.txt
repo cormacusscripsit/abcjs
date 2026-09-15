@@ -1,0 +1,59 @@
+abcjs issue #1117 — every failure in tests/all.html, before vs after
+====================================================================
+
+commit      : 7f637619743ea7bbd56dc31cea75d215b4cbc64c
+browser     : Google Chrome 153.0.8010.36  (headless)
+recorded    : 2026-09-15T15:29:47Z
+
+Failing test names from the two runs, compared. This is the evidence that
+the fix changes nothing outside the tuplet code.
+
+    before: 30 failing
+    after:  20 failing
+
+====================================================================
+FIXED — failing before, passing after (10)
+====================================================================
+    a triplet always fills exactly one quarter note
+    a tuplet doesn't push the rest of the voice out of sync
+    a tuplet doesn't shift the notes that follow it
+    broken rhythm on notes 1-2
+    broken rhythm on notes 1-2
+    long first note
+    long first note
+    one note tuplet doesn't leak
+    reverse broken rhythm on notes 1-2
+    reverse broken rhythm on notes 1-2
+
+====================================================================
+REGRESSIONS — passing before, failing after
+====================================================================
+    (none)
+
+====================================================================
+PRE-EXISTING — failing identically in both runs (20)
+====================================================================
+    beam-br
+    bracket-height
+    chord-class
+    font-box
+    free-text-blank
+    free-text-normal
+    free-text-space
+    glissando-two-line
+    kitchen sink
+    lyrics-only-voice-two
+    measure-numbers
+    output-miss-accidental
+    selection-clefs
+    selection-multiple
+    selection-none
+    set-font
+    transpose-annotations
+    transpose-inline
+    transpose-none
+    voices array
+
+These are visual suites that compare exact glyph geometry, plus
+tests/parse/voices-array. They fail on this machine with or without the
+fix and have nothing to do with tuplet timing.

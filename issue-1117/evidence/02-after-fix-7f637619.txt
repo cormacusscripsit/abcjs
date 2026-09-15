@@ -1,0 +1,31 @@
+abcjs issue #1117 — the same page, same checkout, with the fix applied
+=====================================================================
+
+commit      : 7f637619743ea7bbd56dc31cea75d215b4cbc64c  + fix.patch
+browser     : Google Chrome 153.0.8010.36  (headless)
+recorded    : 2026-09-15T15:29:47Z
+
+Identical to the 01- run except for one file:
+     M src/synth/abc_midi_sequencer.js       (fix.patch: +12 -15)
+     M tests/all.html                        (registers the two new files)
+    ?? tests/synth/tuplet-duration.test.js   (new)
+    ?? tests/synth/tuplet-midi.test.js       (new)
+
+=====================================================================
+RESULT
+=====================================================================
+
+passes:   248
+failures: 20
+
+      before the fix:  238 passing, 30 failing
+      after the fix:   248 passing, 20 failing
+                       ---------------------------
+                       +10 passing, -10 failing
+
+All 15 tests in the two new suites pass. The 20 remaining failures are the
+pre-existing ones, unchanged — see 03-failure-diff-7f637619.txt.
+
+Tuplet suites specifically:
+    Tuplet duration: 8 passing, 0 failing
+    Tuplet MIDI output: 7 passing, 0 failing

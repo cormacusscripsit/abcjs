@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>abcjs #1117 — tuplet duration A/B</title>
+<link rel="stylesheet" type="text/css" href="abcjs-audio.css">
+<style>
+	:root {
+		--bg: #f7f7f5; --fg: #1b1b18; --muted: #6b6b63; --line: #ddddd6;
+		--card: #ffffff; --bad: #b3261e; --good: #1b6b3a;
+		--badbg: #fdf1f0; --goodbg: #f0f7f2;
+		--neutral: #2c5578; --neutralbg: #eef4fa;
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--fg);
+		font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+	.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 80px; }
+	h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+	.sub { color: var(--muted); margin: 0 0 28px; }
+	.note { background: #fff8e6; border: 1px solid #e8d9a8; border-radius: 8px;
+		padding: 12px 16px; margin: 0 0 28px; font-size: 14px; }
+	.note code { background: rgba(0,0,0,.05); padding: 1px 5px; border-radius: 4px; }
+
+	section { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+		padding: 20px 22px 22px; margin: 0 0 22px; }
+	section > h2 { font-size: 18px; margin: 0 0 2px; }
+	section > .why { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+	pre.abc { background: #f3f3ef; border: 1px solid var(--line); border-radius: 6px;
+		padding: 10px 12px; margin: 0 0 16px; overflow-x: auto;
+		font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+	.ab { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+	@media (max-width: 900px) { .ab { grid-template-columns: 1fr; } }
+	.panel { border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+	.panel.before { border-color: #e7c9c6; background: var(--badbg); }
+	.panel.after  { border-color: #c6ddcd; background: var(--goodbg); }
+	/* A control example is not broken unpatched, so don't colour it like a failure. */
+	.panel.before.neutral { border-color: #cddcea; background: var(--neutralbg); }
+	.panel h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase;
+		letter-spacing: .07em; }
+	.panel.before h3 { color: var(--bad); }
+	.panel.before.neutral h3 { color: var(--neutral); }
+	.panel.after h3 { color: var(--good); }
+	.score { background: #fff; border-radius: 6px; overflow-x: auto; }
+	.audio { margin-top: 10px; }
+	table.nums { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12.5px;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+	table.nums th { text-align: left; font-weight: 600; color: var(--muted);
+		border-bottom: 1px solid var(--line); padding: 4px 6px; font-size: 11px;
+		text-transform: uppercase; letter-spacing: .05em; }
+	table.nums td { padding: 3px 6px; border-bottom: 1px solid rgba(0,0,0,.05); }
+	td.wrong { color: var(--bad); font-weight: 700; }
+	td.ok { color: var(--good); }
+	.verdict { margin-top: 10px; font-size: 13px; font-weight: 600; }
+	.verdict.bad { color: var(--bad); }
+	.verdict.good { color: var(--good); }
+	.same { margin-top: 10px; font-size: 13px; color: var(--muted); font-style: italic; }
+
+	.abcjs-cursor { stroke: #d33; stroke-width: 2; }
+	.highlight { fill: #0a9ecc; }
+	.abcjs-inline-audio { height: 32px; }
+	.legend { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+	h2 .num { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 2px; }
+	.tag { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+		padding: 2px 7px; border-radius: 10px; vertical-align: 2px; font-weight: 600; }
+	.tag.control { background: #e8eef5; color: #2c5578; border: 1px solid #cddcea; }
+
+	nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+		padding: 16px 22px 18px; margin: 0 0 22px; }
+	nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+		color: var(--muted); margin: 0 0 10px; }
+	nav.toc ol { margin: 0; padding-left: 22px; }
+	nav.toc li { margin: 4px 0; }
+	nav.toc a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
+	nav.toc a:hover { border-bottom-color: var(--fg); }
+	section { scroll-margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>abcjs issue #1117 — tuplet durations, before and after the fix</h1>
+<p class="sub">Left panel runs stock abcjs 6.7.0. Right panel runs the same build with the
+one-function fix in <code>src/synth/abc_midi_sequencer.js</code>. Everything else is identical.</p>
+
+<div class="note">
+	<strong>How to listen.</strong> Press play on the left, then on the right. The lower staff is a
+	bass line in root and fifth that keeps steady time — on the left the melody walks off it and
+	never comes back; on the right the two stay locked together. Watch the red cursor as well: on
+	the left it finishes the phrase while the audio is still sounding.
+	The two examples marked <strong>Control</strong> must sound <em>identical</em> on both sides —
+	they are the same melody written without the broken rhythm, and they show the fix leaves alone
+	what already worked.
+	Audio needs network access for the soundfont (<code>paulrosen.github.io</code>).
+</div>
+
+<div id="examples"></div>
+
+<script src="abcjs-before.js"></script>
+<script>window.ABCJS_BEFORE = window.ABCJS; window.ABCJS = undefined;</script>
+<script src="abcjs-after.js"></script>
+<script>window.ABCJS_AFTER = window.ABCJS;</script>
+<script>
+"use strict";
+
+var BUILDS = [
+	{ key: "before", label: "6.7.0 — unpatched", lib: window.ABCJS_BEFORE },
+	{ key: "after",  label: "with the fix",      lib: window.ABCJS_AFTER }
+];
+
+// ---------------------------------------------------------------- examples
+// A two-bar phrase in G, the melody in thirds and fifths over a root-and-fifth
+// bass. The first four examples are the same phrase with the triplets written
+// four different ways, so you can hear that only the shape of the writing
+// changes, never the amount of time the music should take.
+var PHRASE_BASS = "G,,2D,2 D,2A,,2 | G,,2D,2 G,,4 |";
+
+function gTune(melody, bass) {
+	return "X:1\nM:4/4\nL:1/8\nQ:1/4=100\nK:G\n" +
+		"V:1 clef=treble\nV:2 clef=bass\n" +
+		"[V:1] " + melody + "\n[V:2] " + (bass || PHRASE_BASS) + "\n";
+}
+
+var EXAMPLES = [
+	{
+		title: "A broken rhythm inside a triplet",
+		why: "G and D arpeggios in triplets, over a root-and-fifth bass. The > lengthens the " +
+			 "first note of each triplet at the expense of the second, which should not change " +
+			 "how long the triplet lasts. Unpatched, the melody ends three beats after the bass.",
+		abc: gTune("(3G>Bd (3g>dB (3A>df (3a>fd | (3B>dg (3b>gd G4 |")
+	},
+	{
+		title: "The same phrase, even triplets",
+		why: "The identical melody with the > removed. Nothing about this case changes — both " +
+			 "sides must sound the same, and the numbers below must match exactly, down to the " +
+			 "rounding residue on the last note of each triplet.",
+		abc: gTune("(3GBd (3gdB (3Adf (3afd | (3Bdg (3bgd G4 |"),
+		control: true
+	},
+	{
+		title: "The same phrase, broken on notes 2 and 3",
+		why: "Also unchanged, and this is why the bug looked like it only affected “complex” " +
+			 "triplets: with the > between the second and third notes, the first note is still " +
+			 "representative of the rest, so guessing the total from it happens to come out right.",
+		abc: gTune("(3GB>d (3gd>B (3Ad>f (3af>d | (3Bd>g (3bg>d G4 |"),
+		control: true
+	},
+	{
+		title: "The same phrase with < instead of >",
+		why: "Same arithmetic, opposite sign. Unpatched, the last note of every triplet gets a " +
+			 "negative duration and is dropped from the MIDI file, so the melody runs short and " +
+			 "you hear two notes per triplet instead of three.",
+		abc: gTune("(3G<Bd (3g<dB (3A<df (3a<fd | (3B<dg (3b<gd G4 |")
+	},
+	{
+		title: "No broken rhythm at all — just a longer first note",
+		why: "Three triplets spread across the bar against four beats in the bass, the first note " +
+			 "of each written as a quarter. There is no > anywhere: this is not a broken-rhythm " +
+			 "bug. Any triplet whose first note is written a different length from the others " +
+			 "goes wrong the same way.",
+		abc: gTune("(3G2Bd (3B2dg (3d2gb | g8 |", "G,,2D,2 G,,2D,2 | G,,8 |")
+	},
+	{
+		title: "The reporter's second example, over a drone",
+		why: "The 3/4 phrase from the thread, with an open-fifth drone underneath. (Their bar 2 " +
+			 "is written slightly over-full, which would muddy the comparison, so this repeats " +
+			 "their bar 1.)",
+		abc: "X:1\nM:3/4\nL:1/8\nQ:1/4=120\nK:Emix\nV:1 clef=treble\nV:2 clef=bass\n" +
+			 "[V:1] B2 (3B-Bc (3G>FE | B2 (3B-Bc (3G>FE |\n" +
+			 "[V:2] E,4 E,2 | E,4 E,2 |\n"
+	},
+	{
+		title: "Exactly as reported in issue #1117",
+		why: "The tune from the report, unaltered — same notes, same voices, no bass clef. " +
+			 "Kept verbatim so the recording matches what was filed. Voice 1 falls a quarter " +
+			 "note behind voice 2 after the second triplet.",
+		abc: "X:1\nT:triplet rhythms\nM:4/4\nQ:1/8=90\nL:1/8\nK:G\n" +
+			 "V:1\n(3 D2E2F2 (3 D2>E2F2 | (3 DEF (3 DEF (3 DEF (3 DEF |\n" +
+			 "V:2\nC2 C2C2C2 | C2 C2C2C2 |\n"
+	}
+];
+
+// ------------------------------------------------------- MIDI file decoder
+function readMidi(bytes) {
+	function str(o, n) { var s = ""; for (var i = 0; i < n; i++) s += String.fromCharCode(bytes[o + i]); return s; }
+	function u16(o) { return (bytes[o] << 8) | bytes[o + 1]; }
+	function u32(o) { return (bytes[o] * 16777216) + (bytes[o + 1] << 16) + (bytes[o + 2] << 8) + bytes[o + 3]; }
+	if (str(0, 4) !== "MThd") return null;
+	var division = u16(12), numTracks = u16(10), pos = 8 + u32(4), tracks = [];
+	for (var t = 0; t < numTracks; t++) {
+		if (str(pos, 4) !== "MTrk") break;
+		var end = pos + 8 + u32(pos + 4), p = pos + 8, tick = 0, running = 0, events = [], b;
+		while (p < end) {
+			var delta = 0;
+			do { b = bytes[p++]; delta = (delta << 7) | (b & 0x7f); } while (b & 0x80);
+			tick += delta;
+			var status = bytes[p];
+			if (status & 0x80) { running = status; p++; } else status = running;
+			if (status === 0xff) {
+				p++;
+				var mlen = 0; do { b = bytes[p++]; mlen = (mlen << 7) | (b & 0x7f); } while (b & 0x80);
+				p += mlen;
+			} else if (status === 0xf0 || status === 0xf7) {
+				var slen = 0; do { b = bytes[p++]; slen = (slen << 7) | (b & 0x7f); } while (b & 0x80);
+				p += slen;
+			} else {
+				var type = status & 0xf0;
+				if (type === 0x80 || type === 0x90) {
+					events.push({ tick: tick, on: type === 0x90 && bytes[p + 1] > 0, pitch: bytes[p] });
+					p += 2;
+				} else if (type === 0xc0 || type === 0xd0) p += 1;
+				else p += 2;
+			}
+		}
+		tracks.push(events); pos = end;
+	}
+	return { division: division, tracks: tracks };
+}
+
+function midiNotesOfFirstVoice(lib, abc) {
+	try {
+		var bytes = lib.synth.getMidiFile(abc, { midiOutputType: "binary" })[0];
+		var midi = readMidi(bytes);
+		if (!midi) return null;
+		// track 1 is the first voice (track 0 holds the tempo map)
+		for (var t = 0; t < midi.tracks.length; t++) {
+			var open = {}, notes = [];
+			for (var i = 0; i < midi.tracks[t].length; i++) {
+				var ev = midi.tracks[t][i];
+				if (ev.on) { if (!open[ev.pitch]) open[ev.pitch] = []; open[ev.pitch].push(ev.tick); }
+				else if (open[ev.pitch] && open[ev.pitch].length) {
+					var s = open[ev.pitch].shift();
+					notes.push({ pitch: ev.pitch, start: s, duration: ev.tick - s });
+				}
+			}
+			if (notes.length) {
+				notes.sort(function (a, b) { return a.start - b.start; });
+				return { division: midi.division, notes: notes };
+			}
+		}
+	} catch (e) { /* fall through */ }
+	return null;
+}
+
+// ------------------------------------------------------------- the cursor
+function CursorControl(scoreSel) {
+	var self = this;
+	self.onStart = function () {
+		var svg = document.querySelector(scoreSel + " svg");
+		if (!svg) return;
+		var cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+		cursor.setAttribute("class", "abcjs-cursor");
+		cursor.setAttributeNS(null, "x1", 0); cursor.setAttributeNS(null, "y1", 0);
+		cursor.setAttributeNS(null, "x2", 0); cursor.setAttributeNS(null, "y2", 0);
+		svg.appendChild(cursor);
+	};
+	self.onEvent = function (ev) {
+		if (ev.measureStart && ev.left === null) return;
+		var last = document.querySelectorAll(scoreSel + " svg .highlight");
+		for (var k = 0; k < last.length; k++) last[k].classList.remove("highlight");
+		for (var i = 0; i < ev.elements.length; i++)
+			for (var j = 0; j < ev.elements[i].length; j++)
+				ev.elements[i][j].classList.add("highlight");
+		var cursor = document.querySelector(scoreSel + " svg .abcjs-cursor");
+		if (cursor) {
+			cursor.setAttribute("x1", ev.left - 2); cursor.setAttribute("x2", ev.left - 2);
+			cursor.setAttribute("y1", ev.top);      cursor.setAttribute("y2", ev.top + ev.height);
+		}
+	};
+	self.onFinished = function () {
+		var els = document.querySelectorAll(scoreSel + " svg .highlight");
+		for (var i = 0; i < els.length; i++) els[i].classList.remove("highlight");
+		var cursor = document.querySelector(scoreSel + " svg .abcjs-cursor");
+		if (cursor) {
+			cursor.setAttribute("x1", 0); cursor.setAttribute("x2", 0);
+			cursor.setAttribute("y1", 0); cursor.setAttribute("y2", 0);
+		}
+	};
+}
+
+// -------------------------------------------------------------- measuring
+// Every sounding note of the first voice, as the audio path sees it.
+function firstVoiceNotes(flat) {
+	for (var t = 0; t < flat.tracks.length; t++) {
+		var notes = [];
+		for (var i = 0; i < flat.tracks[t].length; i++)
+			if (flat.tracks[t][i].cmd === "note") notes.push(flat.tracks[t][i]);
+		if (notes.length) return notes;
+	}
+	return [];
+}
+
+function numsTable(m, other) {
+	var rows = "";
+	for (var i = 0; i < m.notes.length; i++) {
+		var a = m.notes[i];
+		var ref = other.notes[i];
+		var bad = !ref || Math.abs(ref.duration - a.duration) > 1e-6 ||
+			Math.abs(ref.start - a.start) > 1e-6;
+		var tick = (m.midi && m.midi.notes[i])
+			? m.midi.notes[i].start + " + " + m.midi.notes[i].duration : "—";
+		rows += "<tr><td>" + (i + 1) + "</td>" +
+			"<td class='" + (bad ? "wrong" : "") + "'>" + a.start.toFixed(6) + "</td>" +
+			"<td class='" + (bad ? "wrong" : "") + "'>" + a.duration.toFixed(6) + "</td>" +
+			"<td class='" + (bad ? "wrong" : "") + "'>" + tick + "</td></tr>";
+	}
+	var missing = m.midi ? (m.notes.length - m.midi.notes.length) : 0;
+	if (missing > 0)
+		rows += "<tr><td colspan='4' class='wrong'>" + missing +
+			" note(s) dropped from the MIDI file entirely</td></tr>";
+	return "<table class='nums'><tr><th>#</th><th>start</th><th>duration</th>" +
+		"<th>midi ticks (start + len)</th></tr>" + rows + "</table>" +
+		"<div class='legend'>start/duration in notation units (1.0 = a whole note)" +
+		(m.midi ? "; " + m.midi.division + " midi ticks to the quarter note" : "") + "</div>";
+}
+
+// ---------------------------------------------------------------- building
+var panelsByAudioId = {};
+
+function esc(t) {
+	return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// where the first voice stops, in notation units
+function voiceEnd(notes) {
+	if (!notes.length) return 0;
+	var last = notes[notes.length - 1];
+	return last.start + last.duration;
+}
+
+function go() {
+	var root = document.getElementById("examples");
+
+	// contents, so the examples can be referred to by number
+	var toc = document.createElement("nav");
+	toc.className = "toc";
+	toc.innerHTML = "<h2>Examples</h2><ol>" + EXAMPLES.map(function (ex, i) {
+		return "<li><a href='#ex-" + (i + 1) + "'>" + esc(ex.title) + "</a>" +
+			(ex.control ? " <span class='tag control'>control</span>" : "") + "</li>";
+	}).join("") + "</ol>";
+	root.appendChild(toc);
+
+	EXAMPLES.forEach(function (ex, n) {
+		var ids = BUILDS.map(function (b) {
+			return { build: b, score: "score-" + b.key + "-" + n,
+					 audio: "audio-" + b.key + "-" + n, nums: "nums-" + b.key + "-" + n };
+		});
+		var sec = document.createElement("section");
+		sec.id = "ex-" + (n + 1);
+		sec.innerHTML = "<h2><span class='num'>" + (n + 1) + ".</span> " + esc(ex.title) +
+			(ex.control ? " <span class='tag control'>control</span>" : "") + "</h2>" +
+			"<p class='why'>" + esc(ex.why) + "</p>" +
+			"<pre class='abc'>" + esc(ex.abc) + "</pre>" +
+			"<div class='ab'>" + ids.map(function (p) {
+				return "<div class='panel " + p.build.key +
+					(ex.control && p.build.key === "before" ? " neutral" : "") + "'>" +
+					"<h3>" + p.build.label + "</h3>" +
+					"<div class='score' id='" + p.score + "'></div>" +
+					"<div class='audio' id='" + p.audio + "'></div>" +
+					"<div id='" + p.nums + "'></div></div>";
+			}).join("") + "</div>";
+		root.appendChild(sec);
+
+		var measured = ids.map(function (p) {
+			var lib = p.build.lib;
+			var visualObj = lib.renderAbc(p.score, ex.abc, {
+				add_classes: true, responsive: "resize", staffwidth: 460
+			})[0];
+			var flat = visualObj.setUpAudio({});
+			visualObj.setTiming(0, 0);
+			var m = {
+				visualObj: visualObj,
+				notes: firstVoiceNotes(flat),
+				audioUnits: flat.totalDuration,
+				visualSeconds: visualObj.getTotalTime(),
+				midi: midiNotesOfFirstVoice(lib, ex.abc)
+			};
+			// wire up the player
+			var ctl = new lib.synth.SynthController();
+			ctl.load("#" + p.audio, new CursorControl("#" + p.score),
+				{ displayRestart: true, displayPlay: true, displayProgress: true, displayWarp: false });
+			ctl.setTune(visualObj, false, { chordsOff: true });
+			panelsByAudioId[p.audio] = ctl;
+			return m;
+		});
+
+		// The patched build's audio agrees with the engraved timing, so it gives us an
+		// exact conversion from notation units to milliseconds for this tune.
+		var msPerUnit = measured[1].audioUnits
+			? (measured[1].visualSeconds * 1000) / measured[1].audioUnits : 0;
+
+		var identical = JSON.stringify(measured[0].notes.map(function (x) { return [x.start, x.duration]; })) ===
+			JSON.stringify(measured[1].notes.map(function (x) { return [x.start, x.duration]; }));
+
+		// The comparison has to be about the voice that holds the tuplets. Using the whole
+		// tune would hide the cases where the bug makes voice 1 *shorter*, because then the
+		// steady reference voice is the longer one and sets the total.
+		var correctEndMs = Math.round(voiceEnd(measured[1].notes) * msPerUnit);
+
+		ids.forEach(function (p, idx) {
+			var m = measured[idx], other = measured[1 - idx];
+			var el = document.getElementById(p.nums);
+			el.innerHTML = numsTable(m, other);
+
+			var endMs = Math.round(voiceEnd(m.notes) * msPerUnit);
+			var out = endMs - correctEndMs;
+			var dropped = m.midi ? (m.notes.length - m.midi.notes.length) : 0;
+
+			var v = document.createElement("div");
+			if (identical) {
+				v.className = "same";
+				v.textContent = "identical in both builds ✓  (voice 1 ends at " + endMs + " ms)";
+			} else if (out === 0 && dropped <= 0) {
+				v.className = "verdict good";
+				v.textContent = "voice 1 ends at " + endMs + " ms, matching the engraved timing";
+			} else {
+				v.className = "verdict bad";
+				v.textContent = "voice 1 ends at " + endMs + " ms instead of " + correctEndMs +
+					" ms — " + (out > 0 ? "+" : "") + out + " ms" +
+					(dropped > 0 ? ", and " + dropped + " note(s) never reach the MIDI file" : "");
+			}
+			el.appendChild(v);
+		});
+	});
+
+	// Only one player at a time: starting one pauses whatever else is going.
+	document.addEventListener("click", function (e) {
+		var btn = e.target && e.target.closest ? e.target.closest(".abcjs-midi-start") : null;
+		if (!btn) return;
+		var panel = btn.closest(".panel");
+		var mineId = panel ? panel.querySelector(".audio").id : null;
+		Object.keys(panelsByAudioId).forEach(function (id) {
+			if (id === mineId) return;
+			var ctl = panelsByAudioId[id];
+			try { if (ctl.isStarted) ctl.pause(); } catch (err) { /* ignore */ }
+		});
+	}, true);
+}
+
+if (!window.ABCJS_BEFORE || !window.ABCJS_AFTER) {
+	document.getElementById("examples").innerHTML =
+		"<section><h2>Bundles missing</h2><p class='why'>abcjs-before.js / abcjs-after.js did not load. " +
+		"See README.md in this folder for how to build them.</p></section>";
+} else {
+	go();
+}
+</script>
+</div>
+</body>
+</html>

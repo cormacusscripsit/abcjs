@@ -1,0 +1,164 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>frame renderer</title>
+<style>
+	html,body { margin:0; padding:0; background:#ffffff; }
+	#stage { width:1280px; height:620px; position:relative; display:flex; flex-direction:column; font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+	#bar { height:74px; display:flex; align-items:center; gap:16px; padding:0 34px;
+		border-bottom:1px solid #e2e2dc; }
+	#badge { font-size:19px; font-weight:700; padding:7px 16px; border-radius:8px; }
+	#badge.before { background:#fdf1f0; color:#b3261e; border:1px solid #e7c9c6; }
+	#badge.after  { background:#f0f7f2; color:#1b6b3a; border:1px solid #c6ddcd; }
+	#badge.neutral{ background:#eef4fa; color:#2c5578; border:1px solid #cddcea; }
+	#title { font-size:19px; color:#1b1b18; }
+	#score { flex:1; display:flex; align-items:center; padding:0 34px; overflow:hidden; }
+	#score > div { width:100%; }
+	#score svg { max-width:100%; }
+	.abcjs-cursor { stroke:#d33; stroke-width:2.5; }
+	.highlight { fill:#0a9ecc; }
+	#foot { padding:0 34px 24px; }
+	#track { height:9px; background:#eeeeea; border-radius:5px; overflow:hidden; }
+	#fill { height:100%; width:0; background:#bdbdb5; }
+	#labels { display:flex; justify-content:space-between; margin-top:9px;
+		font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:#6b6b63; }
+	#note { color:#b3261e; font-weight:700; }
+</style>
+<div id="stage">
+	<div id="bar"><span id="badge"></span><span id="title"></span></div>
+	<div id="score"><div id="paper"></div></div>
+	<div id="foot">
+		<div id="track"><div id="fill"></div></div>
+		<div id="labels"><span id="clock"></span><span id="note"></span></div>
+	</div>
+</div>
+<script src="abcjs-before.js"></script>
+<script>window.ABCJS_BEFORE=window.ABCJS;window.ABCJS=undefined;</script>
+<script src="abcjs-after.js"></script>
+<script>window.ABCJS_AFTER=window.ABCJS;</script>
+<script>
+window.__ready = false; window.__error = null; window.__stage = "init";
+(function () {
+	var q = new URLSearchParams(location.search);
+	var idx = parseInt(q.get("ex") || "0", 10);
+	var which = q.get("build") === "before" ? "before" : "after";
+	var lib = which === "before" ? window.ABCJS_BEFORE : window.ABCJS_AFTER;
+
+	window.__stage = "fetching index.html";
+	fetch("index.html").then(function (r) { return r.text(); }).then(function (html) {
+		window.__stage = "parsing EXAMPLES";
+		var block = html.slice(html.indexOf("var PHRASE_BASS"),
+			html.indexOf("// ------------------------------------------------------- MIDI file decoder"));
+		var EXAMPLES = new Function(block + "\nreturn EXAMPLES;")();
+		var ex = EXAMPLES[idx];
+
+		var badge = document.getElementById("badge");
+		badge.className = (ex.control && which === "before") ? "neutral" : which;
+		badge.textContent = which === "before" ? "abcjs 6.7.0" : "with the fix";
+		document.getElementById("title").textContent = (idx + 1) + ". " + ex.title;
+
+		var visualObj = lib.renderAbc("paper", ex.abc,
+			{ add_classes: true, staffwidth: 1130, scale: 1.35 })[0];
+		visualObj.setTiming(0, 0);
+		window.__timings = visualObj.noteTimings;
+
+		var svg = document.querySelector("#score svg");
+		var cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+		cursor.setAttribute("class", "abcjs-cursor");
+		svg.appendChild(cursor);
+
+		window.__stage = "score rendered; creating synth";
+		// Headless Chrome has no audio output device, so the AudioContext stays
+		// "suspended" and prime() waits forever on a resume() that never settles.
+		// prime() only uses the context for createBuffer() and sampleRate -- the
+		// mixing is arithmetic on Float32Arrays -- so handing it a context that
+		// reports "running" changes nothing about the samples produced.
+		var Ctx = window.AudioContext || window.webkitAudioContext;
+		var actx = new Ctx();
+		try { actx.resume(); } catch (e) { /* ignore */ }
+		Object.defineProperty(actx, "state", { get: function () { return "running"; }, configurable: true });
+		window.abcjsAudioContext = actx;
+		window.__sampleRate = actx.sampleRate;
+
+		var synth = new lib.synth.CreateSynth();
+		window.__synth = synth;
+		window.__stage = "calling init (downloads soundfont)";
+		return synth.init({ visualObj: visualObj, options: { chordsOff: true } })
+			.then(function (r) { window.__stage = "init resolved: " + JSON.stringify(r); return synth.prime(); })
+			.then(function (pr) {
+				window.__stage = "prime resolved: " + JSON.stringify(pr);
+				var buf = synth.getAudioBuffer();
+				window.__audioSeconds = buf.duration;
+				var cursorEnd = 0;
+				window.__timings.forEach(function (e) { if (e.type === "end") cursorEnd = e.milliseconds; });
+				window.__cursorSeconds = cursorEnd / 1000;
+				// On 6.7.0 a tuplet written with "<" gives its last note a negative
+				// duration. Such a note produces no sound and is dropped outright from a
+				// generated MIDI file, so count how many notes can actually be heard.
+				var n = 0, audible = 0;
+				(synth.flattened && synth.flattened.tracks ? synth.flattened.tracks : []).forEach(function (tr) {
+					tr.forEach(function (ev) {
+						if (ev.cmd !== "note") return;
+						n++;
+						if (ev.duration > 0) audible++;
+					});
+				});
+				window.__noteCount = n;
+				window.__audibleCount = audible;
+				window.__wav = toWavBase64(buf);
+				window.__ready = true;
+			});
+	}).catch(function (e) { window.__error = (e && e.stack) || String(e); });
+
+	window.__renderFrame = function (ms) {
+		var evs = window.__timings, cur = null;
+		for (var i = 0; i < evs.length; i++)
+			if (evs[i].type === "event" && evs[i].milliseconds <= ms) cur = evs[i];
+		var done = ms >= window.__cursorSeconds * 1000;
+		var svg = document.querySelector("#score svg");
+		var old = svg.querySelectorAll(".highlight");
+		for (var k = 0; k < old.length; k++) old[k].classList.remove("highlight");
+		var line = svg.querySelector(".abcjs-cursor");
+		if (cur && !done) {
+			for (var a = 0; a < cur.elements.length; a++)
+				for (var b = 0; b < cur.elements[a].length; b++)
+					cur.elements[a][b].classList.add("highlight");
+			line.setAttribute("x1", cur.left - 2); line.setAttribute("x2", cur.left - 2);
+			line.setAttribute("y1", cur.top);      line.setAttribute("y2", cur.top + cur.height);
+		} else {
+			line.setAttribute("x1", 0); line.setAttribute("x2", 0);
+			line.setAttribute("y1", 0); line.setAttribute("y2", 0);
+		}
+		var total = Math.max(window.__audioSeconds, window.__cursorSeconds) * 1000;
+		document.getElementById("fill").style.width = Math.min(100, ms / total * 100) + "%";
+		document.getElementById("clock").textContent =
+			(ms / 1000).toFixed(1) + "s   cursor ends " + window.__cursorSeconds.toFixed(2) +
+			"s   audio ends " + window.__audioSeconds.toFixed(2) + "s" +
+			"   audible notes " + window.__audibleCount + " of " + window.__noteCount;
+		var lost = window.__noteCount - window.__audibleCount;
+		document.getElementById("note").textContent =
+			lost > 0 ? lost + " notes have a negative duration and never sound"
+			: (done && ms < window.__audioSeconds * 1000) ? "cursor has finished — audio still playing" : "";
+		return true;
+	};
+
+	function toWavBase64(buf) {
+		var n = buf.numberOfChannels, len = buf.length * n * 2 + 44;
+		var ab = new ArrayBuffer(len), view = new DataView(ab), pos = 0;
+		function u32(v) { view.setUint32(pos, v, true); pos += 4; }
+		function u16(v) { view.setUint16(pos, v, true); pos += 2; }
+		u32(0x46464952); u32(len - 8); u32(0x45564157);
+		u32(0x20746d66); u32(16); u16(1); u16(n);
+		u32(buf.sampleRate); u32(buf.sampleRate * 2 * n); u16(n * 2); u16(16);
+		u32(0x61746164); u32(len - pos - 4);
+		var chans = []; for (var c = 0; c < n; c++) chans.push(buf.getChannelData(c));
+		for (var i = 0; i < buf.length; i++) for (var c2 = 0; c2 < n; c2++) {
+			var s = Math.max(-1, Math.min(1, chans[c2][i]));
+			view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7fff, true); pos += 2;
+		}
+		var bytes = new Uint8Array(ab), bin = "";
+		for (var j = 0; j < bytes.length; j += 8192)
+			bin += String.fromCharCode.apply(null, bytes.subarray(j, j + 8192));
+		return btoa(bin);
+	}
+})();
+</script>

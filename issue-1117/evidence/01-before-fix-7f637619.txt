@@ -1,0 +1,70 @@
+abcjs issue #1117 — tests/all.html against UNMODIFIED upstream source
+=====================================================================
+
+commit      : 7f637619743ea7bbd56dc31cea75d215b4cbc64c
+              Give the interpolated beat position a frame's worth of slack
+package     : abcjs 6.7.0
+browser     : Google Chrome 153.0.8010.36  (headless)
+recorded    : 2026-09-15T15:29:16Z
+
+src/synth/abc_midi_sequencer.js is byte-identical at the 6.7.0 release commit
+4006ea06 and at this commit, so this is the released code:
+    $ git diff 4006ea06 HEAD -- src/synth/abc_midi_sequencer.js
+    (empty)
+
+Working tree of the checkout under test:
+     M tests/all.html                        (registers the two new files)
+    ?? tests/synth/tuplet-duration.test.js   (new)
+    ?? tests/synth/tuplet-midi.test.js       (new)
+
+    Nothing under src/ is modified. tests/all.html loads abcjs straight from
+    ../index.js via Tarp.require, so this runs the source tree, not a build.
+
+How it was run — the project's own test page, in a real browser:
+    npx http-server -p 8282 -c-1
+    'Google Chrome' --headless=new --virtual-time-budget=120000 \
+        --dump-dom http://127.0.0.1:8282/tests/all.html
+
+=====================================================================
+RESULT
+=====================================================================
+
+passes:   238
+failures: 30
+
+20 of those 30 failures are pre-existing and unrelated (visual suites that
+depend on exact font metrics, plus tests/parse/voices-array). They fail the
+same way with and without the fix — see 03-failure-diff-7f637619.txt.
+
+The 10 that belong to this issue:
+
+  1) broken rhythm on notes 1-2
+       AssertionError: (3G>FE| note durations: expected '0.125000 0.041667 0.208333' to equal '0.125000 0.041667 0.083333'
+
+  2) reverse broken rhythm on notes 1-2
+       AssertionError: (3G<FE| note durations: expected '0.041667 0.125000 -0.041667' to equal '0.041667 0.125000 0.083333'
+
+  3) long first note
+       AssertionError: (3G2FE| note durations: expected '0.166667 0.083333 0.250000' to equal '0.166667 0.083333 0.083333'
+
+  4) one note tuplet doesn't leak
+       AssertionError: (3:2:1 G FE| note durations: expected '0.083333 0.083333 0.083333' to equal '0.083333 0.125000 0.125000'
+
+  5) a tuplet doesn't push the rest of the voice out of sync
+       AssertionError: the voices end at different times: expected [ 1.25, 1 ] to deeply equal [ 1, 1 ]
+
+  6) broken rhythm on notes 1-2
+       AssertionError: (3G>FE z2 C2 D2| note ticks: expected '0+240 240+80 320+400 1200+480 1680+480' to equal '0+240 240+80 320+160 960+480 1440+480'
+
+  7) reverse broken rhythm on notes 1-2
+       AssertionError: (3G<FE z2 C2 D2| note ticks: expected '0+80 80+240 720+480 1200+480' to equal '0+80 80+240 320+160 960+480 1440+480'
+
+  8) long first note
+       AssertionError: (3G2FE z2 C2| note ticks: expected '0+320 320+160 480+480 1440+480' to equal '0+320 320+160 480+160 1120+480'
+
+  9) a triplet always fills exactly one quarter note
+       AssertionError: (3G>FE|: triplet is the wrong length: expected 720 to equal 480
+
+  10) a tuplet doesn't shift the notes that follow it
+       AssertionError: (3G>FE z2 C2 D2|: the note after the triplet moved: expected 1200 to equal 960
+
