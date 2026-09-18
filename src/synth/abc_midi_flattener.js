@@ -697,7 +697,7 @@ var pitchesToPerc = require('./pitches-to-perc');
 			grace = graces[g];
 			graceDuration += grace.duration;
 		}
-		var multiplier = companionDuration/2 / graceDuration;
+		var multiplier = companionDuration/4 / graceDuration;
 
 		for (g = 0; g < graces.length; g++) {
 			grace = graces[g];
