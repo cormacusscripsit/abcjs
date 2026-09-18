@@ -32,7 +32,7 @@ TempoElement.prototype.createNote = function (createNoteHead, tempo, tuneNumber)
 	var note;
 	if (duration <= 1 / 32) { note = "noteheads.quarter"; flag = "flags.u32nd"; dot = 0; }
 	else if (duration <= 1 / 16) { note = "noteheads.quarter"; flag = "flags.u16th"; dot = 0; }
-	else if (duration <= 3 / 32) { note = "noteheads.quarter"; flag = "flags.u16nd"; dot = 1; }
+	else if (duration <= 3 / 32) { note = "noteheads.quarter"; flag = "flags.u16th"; dot = 1; }
 	else if (duration <= 1 / 8) { note = "noteheads.quarter"; flag = "flags.u8th"; dot = 0; }
 	else if (duration <= 3 / 16) { note = "noteheads.quarter"; flag = "flags.u8th"; dot = 1; }
 	else if (duration <= 1 / 4) { note = "noteheads.quarter"; dot = 0; }
