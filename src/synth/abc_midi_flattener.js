@@ -589,8 +589,15 @@ var pitchesToPerc = require('./pitches-to-perc');
 				var p = { cmd: 'note', pitch: actualPitch, volume: pitchVelocity, start: timeToRealTime(elem.time), duration: durationRounded(note.duration), instrument: currentInstrument, startChar: elem.elem.startChar, endChar: elem.elem.endChar};
 				p = adjustForMicroTone(p);
 				if (elem.gracenotes) {
-					p.duration = p.duration / 2;
-					p.start = p.start + p.duration;
+					// The graces occupy the first quarter of the companion and
+					// it sounds for the remaining three. This share MUST match
+					// the one processGraceNotes uses to scale the graces
+					// themselves: they are two halves of one decision, and when
+					// they disagreed the pair no longer filled the written note
+					// and everything after it moved early.
+					var graceShare = p.duration / 4;
+					p.duration = p.duration - graceShare;
+					p.start = p.start + graceShare;
 				}
 				if (elem.elem)
 					elem.elem.midiPitches.push(p);
