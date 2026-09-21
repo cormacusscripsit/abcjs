@@ -95,6 +95,8 @@ var Repeats = require("./repeats");
 				startingMidi.push({ el_type: 'beat', beats: globals.beat })
 			if (globals.nobeataccents)
 				startingMidi.push({ el_type: 'beataccents', value: false });
+			if (globals.gracedivider)
+				startingMidi.push({ el_type: 'gracedivider', value: globals.gracedivider[0] });
 
 		}
 

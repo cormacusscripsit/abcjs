@@ -15,6 +15,9 @@ var pitchesToPerc = require('./pitches-to-perc');
 	var accidentals;
 	var transpose;
 	var bagpipes;
+	var graceStyle;
+	var graceMaxMs;
+	var graceDivider;
 	var tracks;
 	var startingTempo;
 	var startingMeter;
@@ -52,6 +55,27 @@ var pitchesToPerc = require('./pitches-to-perc');
 	// The gaps per beat. The first two are in seconds, the third is in fraction of a duration.
 	var normalBreakBetweenNotes = 0; //0.000520833333325*1.5; // for articulation (matches muse score value)
 	var slurredBreakBetweenNotes = -0.001; // make the slurred notes actually overlap
+	// How long is a grace note? The programs disagree, so this is a choice, not a fact.
+	//
+	//   'legacy' - the group takes half the note it decorates. This is what abcjs has
+	//              always done, and it is the correct classical reading of an *unslashed*
+	//              grace note (an appoggiatura). Applied to every grace note, though, it
+	//              makes an Irish cut exactly as long as the melody note it decorates.
+	//   'cut'    - min(half the note, graceMaxMs). MuseScore's acciaccatura rule. The
+	//              millisecond ceiling is the part that matters: it is what keeps an
+	//              ornament ornamental at any tempo and any note length.
+	//   'unit'   - each grace keeps its own written value divided by graceDivider, with no
+	//              reference to the note it decorates. This is abc2midi's %%MIDI
+	//              gracedivider, which divides the L: unit length. abcjs normalises a
+	//              written grace to an eighth-note basis, so divider 4 yields a 32nd --
+	//              identical to abc2midi when L:1/8, and off by the L: ratio otherwise.
+	//
+	// A grace the source marked as an acciaccatura ({/a}) always uses 'cut' whatever the
+	// default is: the notation has already said what it wants.
+	var DEFAULT_GRACE_STYLE = 'cut';
+	var DEFAULT_GRACE_MAX_MS = 65;   // MuseScore's acciaccatura ceiling
+	var DEFAULT_GRACE_DIVIDER = 4;   // only consulted by 'unit'
+
 	var staccatoBreakBetweenNotes = 0.4; // some people say staccato is half duration, some say 3/4 so this splits it
 
 	flatten = function(voices, options, percmap_, midiOptions) {
@@ -60,6 +84,9 @@ var pitchesToPerc = require('./pitches-to-perc');
 		barAccidentals = [];
 		accidentals = [0,0,0,0,0,0,0];
 		bagpipes = false;
+		graceStyle = options.graceStyle || DEFAULT_GRACE_STYLE;
+		graceMaxMs = options.graceMaxMs !== undefined ? options.graceMaxMs : DEFAULT_GRACE_MAX_MS;
+		graceDivider = DEFAULT_GRACE_DIVIDER;
 		tracks = [];
 		startingTempo = options.qpm;
 		startingMeter = undefined;
@@ -166,6 +193,13 @@ var pitchesToPerc = require('./pitches-to-perc');
 						break;
 					case "bagpipes":
 						bagpipes = true;
+						break;
+					case "gracedivider":
+						// abc2midi's directive, so it selects abc2midi's rule too.
+						if (element.value > 0) {
+							graceDivider = element.value;
+							graceStyle = 'unit';
+						}
 						break;
 					case "instrument":
 						if (instrument === undefined)
@@ -588,9 +622,13 @@ var pitchesToPerc = require('./pitches-to-perc');
 				}
 				var p = { cmd: 'note', pitch: actualPitch, volume: pitchVelocity, start: timeToRealTime(elem.time), duration: durationRounded(note.duration), instrument: currentInstrument, startChar: elem.elem.startChar, endChar: elem.elem.endChar};
 				p = adjustForMicroTone(p);
-				if (elem.gracenotes) {
-					p.duration = p.duration / 2;
-					p.start = p.start + p.duration;
+				if (graces && graces.length) {
+					// Borrow exactly the time the graces actually consumed, rather than assuming half.
+					var graceTotal = 0;
+					for (var gi = 0; gi < graces.length; gi++)
+						graceTotal += graces[gi].duration;
+					p.duration = Math.max(p.duration - graceTotal, 0);
+					p.start = p.start + graceTotal;
 				}
 				if (elem.elem)
 					elem.elem.midiPitches.push(p);
@@ -688,16 +726,43 @@ var pitchesToPerc = require('./pitches-to-perc');
 		return accidentals;
 	}
 
+	// Whole notes occupying the given wall-clock milliseconds at the starting tempo.
+	// Same conversion the currentTrackMilliseconds bookkeeping uses, read backwards.
+	function msToWholeNotes(ms) {
+		if (!startingTempo || !beatFraction) return Infinity;
+		return ms * beatFraction * startingTempo / 60000;
+	}
+
 	function processGraceNotes(graces, companionDuration) {
-		// Grace notes take up half of the note value. So if there are many of them they are all real short.
 		var graceDuration = 0;
 		var ret = [];
 		var grace;
+		var isAcciaccatura = false;
 		for (var g = 0; g < graces.length; g++) {
 			grace = graces[g];
 			graceDuration += grace.duration;
+			if (grace.acciaccatura)
+				isAcciaccatura = true;
 		}
-		var multiplier = companionDuration/2 / graceDuration;
+		if (graceDuration <= 0)
+			return ret;
+
+		// Whatever the rule, an ornament never takes more than half of what it
+		// decorates -- past that it stops ornamenting and starts replacing.
+		var ceiling = companionDuration / 2;
+		var style = isAcciaccatura ? 'cut' : graceStyle;
+		var total;
+		if (style === 'unit')
+			total = graceDuration / graceDivider;
+		else if (style === 'cut')
+			total = Math.min(ceiling, msToWholeNotes(graceMaxMs));
+		else
+			total = ceiling;
+		if (total > ceiling)
+			total = ceiling;
+
+		// The group gets `total`; the written lengths only set the split within it.
+		var multiplier = total / graceDuration;
 
 		for (g = 0; g < graces.length; g++) {
 			grace = graces[g];
