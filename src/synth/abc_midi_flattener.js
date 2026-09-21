@@ -17,6 +17,7 @@ var pitchesToPerc = require('./pitches-to-perc');
 	var bagpipes;
 	var graceStyle;
 	var graceMaxMs;
+	var graceMaxFraction;
 	var graceDivider;
 	var tracks;
 	var startingTempo;
@@ -74,6 +75,21 @@ var pitchesToPerc = require('./pitches-to-perc');
 	// default is: the notation has already said what it wants.
 	var DEFAULT_GRACE_STYLE = 'cut';
 	var DEFAULT_GRACE_MAX_MS = 65;   // MuseScore's acciaccatura ceiling
+	// ...and a fraction cap as well, which MuseScore does not have.
+	//
+	// MEASURED, for a graced eighth, with the ms ceiling alone:
+	//
+	//   Q:1/4=60   eighth 500ms   grace 65ms   13%
+	//   Q:1/4=120  eighth 250ms   grace 65ms   26%
+	//   Q:1/2=100  eighth 150ms   grace 65ms   43%   <- reel tempo
+	//   Q:1/4=240  eighth 125ms   grace 63ms   50%   <- same as legacy
+	//
+	// A fixed millisecond ceiling stops being a ceiling once the note is short
+	// enough, and at the tempos this is used at -- reels and jigs -- it lets the
+	// ornament take nearly half the note again, which is the complaint it was
+	// meant to answer. The two caps together hold at 25% where the tempo is
+	// quick and at 65ms where it is slow, and neither is ever exceeded.
+	var DEFAULT_GRACE_MAX_FRACTION = 1/4;
 	var DEFAULT_GRACE_DIVIDER = 4;   // only consulted by 'unit'
 
 	var staccatoBreakBetweenNotes = 0.4; // some people say staccato is half duration, some say 3/4 so this splits it
@@ -86,6 +102,7 @@ var pitchesToPerc = require('./pitches-to-perc');
 		bagpipes = false;
 		graceStyle = options.graceStyle || DEFAULT_GRACE_STYLE;
 		graceMaxMs = options.graceMaxMs !== undefined ? options.graceMaxMs : DEFAULT_GRACE_MAX_MS;
+		graceMaxFraction = options.graceMaxFraction !== undefined ? options.graceMaxFraction : DEFAULT_GRACE_MAX_FRACTION;
 		graceDivider = DEFAULT_GRACE_DIVIDER;
 		tracks = [];
 		startingTempo = options.qpm;
@@ -755,7 +772,9 @@ var pitchesToPerc = require('./pitches-to-perc');
 		if (style === 'unit')
 			total = graceDuration / graceDivider;
 		else if (style === 'cut')
-			total = Math.min(ceiling, msToWholeNotes(graceMaxMs));
+			// Both caps: the fraction is what binds at speed, the milliseconds
+			// are what bind when the note is long. See the table above.
+			total = Math.min(companionDuration * graceMaxFraction, msToWholeNotes(graceMaxMs));
 		else
 			total = ceiling;
 		if (total > ceiling)
