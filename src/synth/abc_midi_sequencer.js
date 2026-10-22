@@ -3,6 +3,7 @@
 var sequence;
 var parseCommon = require("../parse/abc_common");
 var Repeats = require("./repeats");
+var allStaffs = require("../data/all-staffs").allStaffs;
 
 (function() {
 	"use strict";
@@ -152,7 +153,8 @@ var Repeats = require("./repeats");
 			// For each group of staff lines in the tune.
 			var line = lines[i];
 			if (line.staff) {
-				var staves = line.staff;
+				// Staffs hidden by %%staffnonote are still played: the voice is matched to its track by its position among all the staffs.
+				var staves = line.hiddenStaffs ? allStaffs(line).map(function (entry) { return entry.staff; }) : line.staff;
 				var voiceNumber = 0;
 				for (var j = 0; j < staves.length; j++) {
 					var staff = staves[j];
@@ -165,7 +167,7 @@ var Repeats = require("./repeats");
 						var voice = staff.voices[k];
 						if (!voices[voiceNumber]) {
 							voices[voiceNumber] = [].concat(JSON.parse(JSON.stringify(startVoice)));
-							var voiceName = getTrackTitle(line.staff, voiceNumber);
+							var voiceName = getTrackTitle(staves, voiceNumber);
 							if (voiceName)
 								voices[voiceNumber].unshift({el_type: "name", trackName: voiceName});
 							repeats[voiceNumber] = new Repeats(voices[voiceNumber])

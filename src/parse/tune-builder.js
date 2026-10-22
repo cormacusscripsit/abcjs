@@ -68,6 +68,9 @@ var TuneBuilder = function (tune) {
 		}
 
 		// If we were passed staffnonote, then we want to get rid of all staffs that contain only rests.
+		// They are removed from line.staff, so nothing draws them, but they are kept in line.hiddenStaffs
+		// with their position, because they are still part of the music: the audio and the timing
+		// need their voices, and need them to take the time of this line. See data/all-staffs.js.
 		if (staffnonote) {
 			anyDeleted = false;
 			for (i = 0; i < tune.lines.length; i++) {
@@ -81,6 +84,9 @@ var TuneBuilder = function (tune) {
 						}
 						if (!keepThis) {
 							anyDeleted = true;
+							if (!tune.lines[i].hiddenStaffs)
+								tune.lines[i].hiddenStaffs = [];
+							tune.lines[i].hiddenStaffs.push({ staffIndex: s, staff: tune.lines[i].staff[s] });
 							tune.lines[i].staff[s] = null;
 						}
 					}
@@ -101,6 +107,10 @@ var TuneBuilder = function (tune) {
 			if (tune.lines[i].staff) {
 				for (s = 0; s < tune.lines[i].staff.length; s++)
 					delete tune.lines[i].staff[s].workingClef;
+			}
+			if (tune.lines[i].hiddenStaffs) {
+				for (s = 0; s < tune.lines[i].hiddenStaffs.length; s++)
+					delete tune.lines[i].hiddenStaffs[s].staff.workingClef;
 			}
 		}
 
@@ -637,8 +647,13 @@ function fixTitles(lines) {
 	for (var i = 0; i < lines.length; i++) {
 		var line = lines[i];
 		if (line.staff) {
-			for (var j = 0; j < line.staff.length; j++) {
-				var staff = line.staff[j];
+			var staffs = line.staff;
+			if (line.hiddenStaffs) {
+				// The hidden staffs are named too, as if they were drawn, so their tracks get the same names as without %%staffnonote.
+				staffs = staffs.concat(line.hiddenStaffs.map(function (hidden) { return hidden.staff; }));
+			}
+			for (var j = 0; j < staffs.length; j++) {
+				var staff = staffs[j];
 				if (staff.title) {
 					var hasATitle = false;
 					for (var k = 0; k < staff.title.length; k++) {

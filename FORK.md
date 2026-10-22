@@ -1,10 +1,23 @@
 # About this fork
 
 This is a fork of [paulrosen/abcjs](https://github.com/paulrosen/abcjs). It exists to carry
-one patch until that patch is upstream. It is **not** a long-lived divergence and should be
-deleted once the pull request lands.
+a few patches until they are upstream. It is **not** a long-lived divergence and should be
+deleted once the pull requests land.
 
-## The patch
+## The patches
+
+What `v6.7.0-tuplet.7` carries on top of upstream's 6.7.0 release, oldest first:
+
+1. The tuplet duration fix, below — upstream PR #1188.
+2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
+3. The grace-note rule: graces take a choice of duration (`ebecc5af`), capped by fraction as
+   well as by milliseconds (`9c675905`).
+4. The tempo-mark glyph name `flags.u16nd` → `flags.u16th` (`d469cce7`).
+5. `%%staffnonote 0` audio and timing (`fix/staffnonote-audio`): a staff hidden because it has
+   no notes on a line is still played, and still takes that line's time. Upstream issue text
+   in `ISSUE-staffnonote.md`, not yet filed.
+
+### The tuplet duration fix
 
 A tuplet's total duration was extrapolated from its first note, which is only correct when
 every note in the tuplet is written the same length. `(3G>FE`, `(3G<FE` and `(3G2FE` all
@@ -20,7 +33,10 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | branch | base | purpose |
 |---|---|---|
 | `fix/1117-tuplet-duration` | upstream `dev` | The pull request. One commit. **Never rewrite this** — it is what the maintainer reviews, and it is the source of the cherry-pick below. |
-| `deploy/6.7.0-tuplet` | upstream `main` (the 6.7.0 release) | What our own projects install. Upstream's release, the one fix, and the removal of a dead submodule that breaks npm git installs. |
+| `deploy/6.7.0-tuplet` | upstream `main` (the 6.7.0 release) | Upstream's release, the tuplet fix, and the removal of a dead submodule that breaks npm git installs. Tag `v6.7.0-tuplet.2`. **No longer what our projects install** — it stops at `.2`. |
+| `tuplet-3` | `deploy/6.7.0-tuplet` | An earlier line of the grace rule. Tags `.3` and `.4`. Superseded by `grace-rule`; kept because the tags are published. |
+| `grace-rule` | `deploy/6.7.0-tuplet` | The grace rule, the tempo glyph fix, this file. Tags `.5` and `.6`. |
+| `fix/staffnonote-audio` | tag `v6.7.0-tuplet.6` | `.6` plus the `%%staffnonote` fix. Tag `v6.7.0-tuplet.7` — **what abctool installs**. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
@@ -30,8 +46,13 @@ Pin a **tag**, never the branch — a branch reference means a later `npm instal
 picks up whatever has been pushed since.
 
 ```json
-"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.2.tar.gz"
+"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.7.tar.gz"
 ```
+
+The tags are not all on one branch (see the table above): find the newest with
+`git tag -l 'v6.7.0-tuplet.*'` and `git branch -a --contains <tag>`, not by reading one branch.
+**Never delete or move a published tag** — make a new one. `v6.7.0-tuplet.1` was replaced once,
+and every clean install of the projects pinning it answered 404 for weeks.
 
 A tarball URL is preferred over `github:cormacusscripsit/abcjs#v6.7.0-tuplet.2`: it needs no
 git and no credentials, so it works the same in CI and in Docker, and npm records an

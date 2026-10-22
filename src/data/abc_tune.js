@@ -5,12 +5,93 @@ var spacing = require('../write/helpers/spacing');
 var sequence = require('../synth/abc_midi_sequencer');
 var flatten = require('../synth/abc_midi_flattener');
 var delineTune = require("./deline-tune");
+var allStaffsModule = require("./all-staffs");
+var allStaffs = allStaffsModule.allStaffs;
+var anyHiddenStaffs = allStaffsModule.anyHiddenStaffs;
 
 /**
  * This is the data for a single ABC tune. It is created and populated by the window.ABCJS.parse.Parse class.
  * Also known as the ABCJS Abstract Syntax Tree
  * @alternateClassName ABCJS.Tune
  */
+// The timing events, when %%staffnonote has hidden a staff on some line. The drawn voices on each line are
+// matched to the voices of the tune by their position among all the staffs, drawn or not, so a voice is
+// followed by its own staff on every line; and a hidden staff's rests are given to its voice as elements
+// that take their time and make no event. Without the hidden staffs this is the same as makeVoicesArray.
+function makeVoicesArrayWithHiddenStaffs(tune) {
+	var voicesArr = [];
+	var measureNumber = [];
+	var tempos = {};
+	var drawnGroups = tune.engraver.staffgroups;
+	for (var line = 0; line < tune.lines.length; line++) {
+		var abcLine = tune.lines[line];
+		var group = abcLine.staffGroup;
+		if (!abcLine.staff || !group || drawnGroups.indexOf(group) < 0)
+			continue;
+		var top, height;
+		if (group.staffs && group.staffs.length > 0) {
+			var firstStaff = group.staffs[0];
+			var middleC = firstStaff.absoluteY;
+			top = middleC - firstStaff.top * spacing.STEP;
+			var lastStaff = group.staffs[group.staffs.length - 1];
+			middleC = lastStaff.absoluteY;
+			var bottom = middleC - lastStaff.bottom * spacing.STEP;
+			height = bottom - top;
+		}
+		var drawnVoices = group.voices; // Tablature adds its voices after all of these, so they are never reached.
+		var nextDrawn = 0;
+		var v = 0;
+		var staffs = allStaffs(abcLine);
+		for (var s = 0; s < staffs.length; s++) {
+			for (var k = 0; k < staffs[s].staff.voices.length; k++, v++) {
+				var elements;
+				if (staffs[s].hidden)
+					elements = hiddenVoiceElements(staffs[s].staff.voices[k]);
+				else
+					elements = drawnVoices[nextDrawn++].children;
+				var noteFound = false;
+				if (!voicesArr[v])
+					voicesArr[v] = [];
+				if (measureNumber[v] === undefined)
+					measureNumber[v] = 0;
+				for (var elem = 0; elem < elements.length; elem++) {
+					if (elements[elem].type === "tempo")
+						tempos[measureNumber[v]] = tune.getBpm(elements[elem].abcelem);
+					voicesArr[v].push({top: top, height: height, line: group.line, measureNumber: measureNumber[v], elem: elements[elem]});
+					if (elements[elem].type === 'bar' && noteFound) // Count the measures by counting the bar lines, but skip a bar line that appears at the left of the music, before any notes.
+						measureNumber[v]++;
+					if (elements[elem].type === 'note' || elements[elem].type === 'rest')
+						noteFound = true;
+				}
+			}
+		}
+	}
+	tune.tempoLocations = tempos;
+	return voicesArr;
+}
+
+// What the engraver would have made of a hidden voice, as far as the timing reads it: its notes and rests with
+// their durations, its bar lines and its tempo marks. Each is marked hidden, so it takes time and makes no event.
+function hiddenVoiceElements(voice) {
+	var elements = [];
+	var tripletMultiplier = 1;
+	for (var i = 0; i < voice.length; i++) {
+		var abcelem = voice[i];
+		if (abcelem.el_type === 'note') {
+			if (abcelem.startTriplet)
+				tripletMultiplier = abcelem.tripletMultiplier;
+			var duration = (abcelem.duration || 0) * tripletMultiplier;
+			elements.push({ type: abcelem.rest ? 'rest' : 'note', duration: duration, durationClass: duration, abcelem: abcelem, elemset: [], hidden: true });
+			if (abcelem.endTriplet)
+				tripletMultiplier = 1;
+		} else if (abcelem.el_type === 'bar')
+			elements.push({ type: 'bar', duration: 0, abcelem: abcelem, elemset: [], hidden: true });
+		else if (abcelem.el_type === 'tempo')
+			elements.push({ type: 'tempo', duration: 0, abcelem: abcelem, elemset: [], hidden: true });
+	}
+	return elements;
+}
+
 var Tune = function() {
 	this.reset = function () {
 		this.version = "1.1.0";
@@ -301,6 +382,8 @@ var Tune = function() {
 		var realDuration = element.durationClass ? element.durationClass : element.duration;
 		if (element.abcelem.rest && element.abcelem.rest.type === "spacer")
 			realDuration = 0;
+		if (element.hidden) // A staff hidden by %%staffnonote takes its time but makes no event: there is nothing drawn to point at.
+			return { isTiedState: isTiedState, duration: realDuration / timeDivider, nextIsBar: nextIsBar };
 		if (realDuration > 0) {
 			var es = [];
 			// If there is an invisible rest, then there are not elements, so don't push a null one.
@@ -394,6 +477,8 @@ var Tune = function() {
 	};
 
 	this.makeVoicesArray = function() {
+		if (anyHiddenStaffs(this.lines))
+			return makeVoicesArrayWithHiddenStaffs(this);
 		// First make a new array that is arranged by voice so that the repeats that span different lines are handled correctly.
 		var voicesArr = [];
 		var measureNumber = [];
@@ -479,7 +564,7 @@ var Tune = function() {
 					var startRepeat = (barType === "bar_left_repeat" || barType === "bar_dbl_repeat" || barType === "bar_right_repeat");
 					if (endRepeat) {
 						// Force the end of the previous note to the position of the measure - the cursor won't go past the end repeat
-						if (elem > 0) {
+						if (elem > 0 && !element.hidden) {
 							eventHash[lastHash].endX = element.x;
 						}
 
