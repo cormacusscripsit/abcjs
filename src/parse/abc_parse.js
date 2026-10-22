@@ -137,38 +137,41 @@ var Parse = function() {
 				if (this.differentFont("repeatfont", defaultFonts)) addFont(el, 'repeatfont', this.repeatfont);
 			}
 		},
+		tieVoiceIndex: function() {
+			// If this is single voice music then the voice index isn't set, so we use the first voice.
+			return this.currentVoice ? this.currentVoice.staffNum * 100 + this.currentVoice.index : 0;
+		},
+		// The tie state at a first ending is saved and restored per voice: each
+		// voice reaches its own [1 and :|[2, and in a multi-voice tune the other
+		// voices' state at that moment belongs to some other point in the music.
 		duplicateStartEndingHoldOvers: function() {
-			this.endingHoldOver = {
+			var voiceIndex = this.tieVoiceIndex();
+			var holdOver = {
 				inTie: [],
 				inTieChord: {}
 			};
 			for (var i = 0; i < this.inTie.length; i++) {
-				this.endingHoldOver.inTie.push([]);
-				if (this.inTie[i]) { // if a voice is suppressed there might be a gap in the array.
-					for (var j = 0; j < this.inTie[i].length; j++) {
-						this.endingHoldOver.inTie[i].push(this.inTie[i][j]);
-					}
-				}
+				holdOver.inTie.push(this.inTie[i] ? this.inTie[i][voiceIndex] : undefined);
 			}
 			for (var key in this.inTieChord) {
 				if (this.inTieChord.hasOwnProperty(key))
-					this.endingHoldOver.inTieChord[key] = this.inTieChord[key];
+					holdOver.inTieChord[key] = this.inTieChord[key];
 			}
+			this.endingHoldOver[voiceIndex] = holdOver;
 		},
 		restoreStartEndingHoldOvers: function() {
-			if (!this.endingHoldOver.inTie)
+			var voiceIndex = this.tieVoiceIndex();
+			var holdOver = this.endingHoldOver[voiceIndex];
+			if (!holdOver)
 				return;
-			this.inTie = [];
-			this.inTieChord = {};
-			for (var i = 0; i < this.endingHoldOver.inTie.length; i++) {
-				this.inTie.push([]);
-				for (var j = 0; j < this.endingHoldOver.inTie[i].length; j++) {
-					this.inTie[i].push(this.endingHoldOver.inTie[i][j]);
-				}
+			for (var i = 0; i < this.inTie.length; i++) {
+				if (this.inTie[i]) // if a voice is suppressed there might be a gap in the array.
+					this.inTie[i][voiceIndex] = holdOver.inTie[i];
 			}
-			for (var key in this.endingHoldOver.inTieChord) {
-				if (this.endingHoldOver.inTieChord.hasOwnProperty(key))
-					this.inTieChord[key] = this.endingHoldOver.inTieChord[key];
+			this.inTieChord = {};
+			for (var key in holdOver.inTieChord) {
+				if (holdOver.inTieChord.hasOwnProperty(key))
+					this.inTieChord[key] = holdOver.inTieChord[key];
 			}
 		},
 	};

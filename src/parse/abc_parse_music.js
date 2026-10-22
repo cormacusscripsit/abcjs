@@ -93,8 +93,7 @@ var MusicParser = function(_tokenizer, _warn, _multilineVars, _tune, _tuneBuilde
 var isInTie = function(multilineVars, overlayLevel, el) {
 	if (multilineVars.inTie[overlayLevel] === undefined)
 		return false;
-	// If this is single voice music then the voice index isn't set, so we use the first voice.
-	var voiceIndex = multilineVars.currentVoice ? multilineVars.currentVoice.staffNum * 100 + multilineVars.currentVoice.index : 0;
+	var voiceIndex = multilineVars.tieVoiceIndex();
 	if (multilineVars.inTie[overlayLevel][voiceIndex]) {
 		if (el.pitches !== undefined || el.rest.type !== 'spacer')
 			return true;
@@ -589,8 +588,7 @@ MusicParser.prototype.parseMusic = function(line) {
 };
 
 var setIsInTie =function(multilineVars, overlayLevel, value) {
-	// If this is single voice music then the voice index isn't set, so we use the first voice.
-	var voiceIndex = multilineVars.currentVoice ? multilineVars.currentVoice.staffNum * 100 + multilineVars.currentVoice.index : 0;
+	var voiceIndex = multilineVars.tieVoiceIndex();
 	if (multilineVars.inTie[overlayLevel] === undefined)
 		multilineVars.inTie[overlayLevel] = [];
 	multilineVars.inTie[overlayLevel][voiceIndex] = value;

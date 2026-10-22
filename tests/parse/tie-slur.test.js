@@ -97,6 +97,113 @@ describe("Tie Slur", function () {
 
 	var expectedMultipartTieHeight = [ 14, 20 ]
 
+	// The tie state saved at [1 and restored at :|[2 belongs to the voice that
+	// wrote them. Restoring every voice let a later voice's :|[2 put back a
+	// snapshot taken lines earlier, wiping a tie an earlier voice had just
+	// opened in its own second ending: the next line's note lost its endTie
+	// and the engraver drew the tie edge to edge across that line.
+	var abcTieAfterSecondEnding =
+		"X:1\n" +
+		"M:4/4\n" +
+		"K:C\n" +
+		"[V:S] |: c4 |[1 c4 |\n" +
+		"[V:A] |: e4 |[1 e4 |\n" +
+		"[V:S] c4 :|[2 G4- |\n" +
+		"[V:A] e4 :|[2 C4- |\n" +
+		"[V:S] G4 |]\n" +
+		"[V:A] C4 |]\n"
+
+	var expectedTieAfterSecondEnding = [
+		{line: 0, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 1, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 1, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 0, startTie: {}, endTie: undefined},
+		{line: 1, staff: 1, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 1, startTie: {}, endTie: undefined},
+		{line: 2, staff: 0, startTie: undefined, endTie: true},
+		{line: 2, staff: 1, startTie: undefined, endTie: true},
+	]
+
+	// A tie open going into [1 ends on the first note of [1 and, after the
+	// restore, on the first note of [2 as well, in each voice: though the
+	// soprano's tie has ended by the time the alto reaches its own [1.
+	var abcTieIntoBothEndings =
+		"X:1\n" +
+		"M:4/4\n" +
+		"K:C\n" +
+		"[V:S] |: c4- |[1 c4 |\n" +
+		"[V:A] |: e4- |[1 e4 |\n" +
+		"[V:S] c4 :|[2 c4 |]\n" +
+		"[V:A] e4 :|[2 e4 |]\n"
+
+	var expectedTieIntoBothEndings = [
+		{line: 0, staff: 0, startTie: {}, endTie: undefined},
+		{line: 0, staff: 0, startTie: undefined, endTie: true},
+		{line: 0, staff: 1, startTie: {}, endTie: undefined},
+		{line: 0, staff: 1, startTie: undefined, endTie: true},
+		{line: 1, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 0, startTie: undefined, endTie: true},
+		{line: 1, staff: 1, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 1, startTie: undefined, endTie: true},
+	]
+
+	// The same with only the lower voice tied: its own state comes back at :|[2,
+	// not the soprano's.
+	var abcTieIntoEndingsLowerVoice =
+		"X:1\n" +
+		"M:4/4\n" +
+		"K:C\n" +
+		"[V:S] |: c4 |[1 c4 |\n" +
+		"[V:A] |: e4- |[1 e4 |\n" +
+		"[V:S] c4 :|[2 c4 |]\n" +
+		"[V:A] e4 :|[2 e4 |]\n"
+
+	var expectedTieIntoEndingsLowerVoice = [
+		{line: 0, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 1, startTie: {}, endTie: undefined},
+		{line: 0, staff: 1, startTie: undefined, endTie: true},
+		{line: 1, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 1, startTie: undefined, endTie: undefined},
+		{line: 1, staff: 1, startTie: undefined, endTie: true},
+	]
+
+	// A tie left open at the end of [1 goes back to the repeat, not into [2.
+	var abcTieOutOfFirstEnding =
+		"X:1\n" +
+		"M:4/4\n" +
+		"K:C\n" +
+		"[V:S] |: c4 |[1 c4- :|[2 c4 |]\n" +
+		"[V:A] |: e4 |[1 e4- :|[2 e4 |]\n"
+
+	var expectedTieOutOfFirstEnding = [
+		{line: 0, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 0, startTie: {}, endTie: undefined},
+		{line: 0, staff: 0, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 1, startTie: undefined, endTie: undefined},
+		{line: 0, staff: 1, startTie: {}, endTie: undefined},
+		{line: 0, staff: 1, startTie: undefined, endTie: undefined},
+	]
+
+	it('tie-after-second-ending-across-line', function() {
+		doParseTest(abcTieAfterSecondEnding, expectedTieAfterSecondEnding)
+	})
+
+	it('tie-into-both-endings', function() {
+		doParseTest(abcTieIntoBothEndings, expectedTieIntoBothEndings)
+	})
+
+	it('tie-into-endings-lower-voice', function() {
+		doParseTest(abcTieIntoEndingsLowerVoice, expectedTieIntoEndingsLowerVoice)
+	})
+
+	it('tie-out-of-first-ending', function() {
+		doParseTest(abcTieOutOfFirstEnding, expectedTieOutOfFirstEnding)
+	})
+
 	it('multipart-tie', function() {
 		doParseTest(abcMultipartTie, expectedMultipartTie)
 	})

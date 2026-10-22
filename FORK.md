@@ -6,7 +6,7 @@ deleted once the pull requests land.
 
 ## The patches
 
-What `v6.7.0-tuplet.7` carries on top of upstream's 6.7.0 release, oldest first:
+What `v6.7.0-tuplet.8` carries on top of upstream's 6.7.0 release, oldest first:
 
 1. The tuplet duration fix, below — upstream PR #1188.
 2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
@@ -16,6 +16,10 @@ What `v6.7.0-tuplet.7` carries on top of upstream's 6.7.0 release, oldest first:
 5. `%%staffnonote 0` audio and timing (`fix/staffnonote-audio`): a staff hidden because it has
    no notes on a line is still played, and still takes that line's time. Upstream issue text
    in `ISSUE-staffnonote.md`, not yet filed.
+6. Tie state at endings kept per voice (`fix/ending-ties`): each voice's `:|[2` put back every
+   voice's tie state as it was at the last `[1` any voice reached, so a tie an upper voice had
+   opened in its second ending was lost: the note across the line break had no end, and the
+   tie was drawn edge to edge across that line.
 
 ### The tuplet duration fix
 
@@ -36,7 +40,8 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | `deploy/6.7.0-tuplet` | upstream `main` (the 6.7.0 release) | Upstream's release, the tuplet fix, and the removal of a dead submodule that breaks npm git installs. Tag `v6.7.0-tuplet.2`. **No longer what our projects install** — it stops at `.2`. |
 | `tuplet-3` | `deploy/6.7.0-tuplet` | An earlier line of the grace rule. Tags `.3` and `.4`. Superseded by `grace-rule`; kept because the tags are published. |
 | `grace-rule` | `deploy/6.7.0-tuplet` | The grace rule, the tempo glyph fix, this file. Tags `.5` and `.6`. |
-| `fix/staffnonote-audio` | tag `v6.7.0-tuplet.6` | `.6` plus the `%%staffnonote` fix. Tag `v6.7.0-tuplet.7` — **what abctool installs**. |
+| `fix/staffnonote-audio` | tag `v6.7.0-tuplet.6` | `.6` plus the `%%staffnonote` fix. Tag `v6.7.0-tuplet.7`. |
+| `fix/ending-ties` | tag `v6.7.0-tuplet.7` | `.7` plus the per-voice tie state at endings. Tag `v6.7.0-tuplet.8` — **what abctool installs**. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
@@ -46,7 +51,7 @@ Pin a **tag**, never the branch — a branch reference means a later `npm instal
 picks up whatever has been pushed since.
 
 ```json
-"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.7.tar.gz"
+"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.8.tar.gz"
 ```
 
 The tags are not all on one branch (see the table above): find the newest with
