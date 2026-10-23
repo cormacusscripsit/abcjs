@@ -6,7 +6,7 @@ deleted once the pull requests land.
 
 ## The patches
 
-What `v6.7.0-tuplet.8` carries on top of upstream's 6.7.0 release, oldest first:
+What `v6.7.0-tuplet.9` carries on top of upstream's 6.7.0 release, oldest first:
 
 1. The tuplet duration fix, below — upstream PR #1188.
 2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
@@ -20,6 +20,12 @@ What `v6.7.0-tuplet.8` carries on top of upstream's 6.7.0 release, oldest first:
    voice's tie state as it was at the last `[1` any voice reached, so a tie an upper voice had
    opened in its second ending was lost: the note across the line break had no end, and the
    tie was drawn edge to edge across that line.
+7. Whole-bar rests and meter changes (`fix/inline-meter-rest`): a rest written as a whole
+   note fills its bar, but the bar length came from the last `M:` line, never an inline `[M:]`,
+   so `[M:4/4] … | z8 |` in a 5/8 tune gave a 5/8 rest and "Duration not representable". A bar
+   rest `Z` was worse: its length came from the tune's *first* meter, whatever followed. Both
+   now use the voice's inline meter, else the last `M:` line. And `Z` in a 5/8 or 7/8 bar is
+   no longer warned "not representable": a bar rest is one sign whatever its length.
 
 ### The tuplet duration fix
 
@@ -41,7 +47,8 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | `tuplet-3` | `deploy/6.7.0-tuplet` | An earlier line of the grace rule. Tags `.3` and `.4`. Superseded by `grace-rule`; kept because the tags are published. |
 | `grace-rule` | `deploy/6.7.0-tuplet` | The grace rule, the tempo glyph fix, this file. Tags `.5` and `.6`. |
 | `fix/staffnonote-audio` | tag `v6.7.0-tuplet.6` | `.6` plus the `%%staffnonote` fix. Tag `v6.7.0-tuplet.7`. |
-| `fix/ending-ties` | tag `v6.7.0-tuplet.7` | `.7` plus the per-voice tie state at endings. Tag `v6.7.0-tuplet.8` — **what abctool installs**. |
+| `fix/ending-ties` | tag `v6.7.0-tuplet.7` | `.7` plus the per-voice tie state at endings. Tag `v6.7.0-tuplet.8`. |
+| `fix/inline-meter-rest` | tag `v6.7.0-tuplet.8` | `.8` plus the whole-bar rest after an inline meter. Tag `v6.7.0-tuplet.9` — **what abctool installs**. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
@@ -51,7 +58,7 @@ Pin a **tag**, never the branch — a branch reference means a later `npm instal
 picks up whatever has been pushed since.
 
 ```json
-"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.8.tar.gz"
+"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.9.tar.gz"
 ```
 
 The tags are not all on one branch (see the table above): find the newest with

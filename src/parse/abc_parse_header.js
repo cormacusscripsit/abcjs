@@ -356,6 +356,9 @@ var ParseHeader = function(tokenizer, warn, multilineVars, tune, tuneBuilder) {
 					return [ e-i+1+ws ];
 				case "[M:":
 					var meter = this.setMeter(line.substring(i+3, e));
+					// The bar length a whole rest fills, from here on, in this voice only.
+					if (meter)
+						(multilineVars.currentVoice || multilineVars).barMeter = meter;
 					if (startLine && multilineVars.currentVoice && meter)
 						multilineVars.staves[multilineVars.currentVoice.staffNum].meter = meter;
 					else if (tuneBuilder.hasBeginMusic() && meter)
@@ -519,6 +522,10 @@ var ParseHeader = function(tokenizer, warn, multilineVars, tune, tuneBuilder) {
 					break;
 				case  'M':
 					multilineVars.origMeter = multilineVars.meter = this.setMeter(line.substring(2));
+					// An M: line sets every voice's meter, replacing any inline one.
+					delete multilineVars.barMeter;
+					for (var voiceId in multilineVars.voices)
+						delete multilineVars.voices[voiceId].barMeter;
 					break;
 				case  'P':
 					// TODO-PER: There is more to do with parts, but the writer doesn't care.

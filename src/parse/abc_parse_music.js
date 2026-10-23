@@ -560,7 +560,8 @@ MusicParser.prototype.parseMusic = function(line) {
 						// Only durations less than a whole note are tested because whole note durations have some tricky rules.
 
 						if (el.duration < 1 && durations.indexOf(el.duration) === -1 && el.duration !== 0) {
-							if (!el.rest || el.rest.type !== 'spacer')
+							// A spacer is not drawn, and a bar rest (Z, X) is one sign whatever its length.
+							if (!el.rest || (el.rest.type !== 'spacer' && el.rest.type.indexOf('multimeasure') < 0))
 								warn("Duration not representable: " + line.substring(startI, i), line, i);
 						}
 
@@ -742,7 +743,8 @@ function letter_to_overlay(line, i) {
 
 function durationOfMeasure(multilineVars) {
 	// TODO-PER: This could be more complicated if one of the unusual measures is used.
-	var meter = multilineVars.origMeter;
+	// An inline [M:] changes the meter for the voice it is in (see barMeter in abc_parse_header.js).
+	var meter = (multilineVars.currentVoice || multilineVars).barMeter || multilineVars.origMeter;
 	if (!meter || meter.type !== 'specified')
 		return 1;
 	if (!meter.value || meter.value.length === 0)
@@ -751,7 +753,21 @@ function durationOfMeasure(multilineVars) {
 }
 
 
-
+// The length of a bar where the parser is now, for a bar rest (Z): the voice's
+// inline [M:] if it has one, else the last M: line. Counted as
+// tune.getMeterFraction counts a meter: Z used that before, but it reads only
+// the tune's first meter.
+function barLength(multilineVars) {
+	var meter = (multilineVars.currentVoice || multilineVars).barMeter || multilineVars.origMeter;
+	if (meter && meter.type === 'specified' && meter.value && meter.value.length > 0) {
+		var num = 0;
+		var parts = meter.value[0].num.split('+');
+		for (var i = 0; i < parts.length; i++)
+			num += parseInt(parts[i], 10);
+		return num / parseInt(meter.value[0].den, 10);
+	}
+	return 1; // no meter, common or cut time; getMeterFraction gives any other kind 4/4 too
+}
 
 var letter_to_accent = function(line, i) {
 	var macro = multilineVars.macros[line[i]];
@@ -1164,7 +1180,7 @@ var getCoreNote = function(line, index, el, canHaveBrokenRhythm) {
 					delete el.grace_notes;
 					// At this point we have a valid note. The rest is optional. Set the duration in case we don't get one below
 					if (el.rest.type.indexOf('multimeasure') >= 0) {
-						el.duration = tune.getBarLength();
+						el.duration = barLength(multilineVars);
 						el.rest.text = 1;
 						state = 'Zduration';
 					} else {
@@ -1211,7 +1227,7 @@ var getCoreNote = function(line, index, el, canHaveBrokenRhythm) {
 					el.accidental = 'quarterflat';state = 'pitch';
 				} else if (state === 'Zduration') {
 					var num = tokenizer.getNumber(line, index);
-					el.duration = num.num * tune.getBarLength();
+					el.duration = num.num * barLength(multilineVars);
 					el.rest.text = num.num;
 					el.endChar = num.index;
 					return el;
