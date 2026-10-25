@@ -3,6 +3,7 @@
 var sequence;
 var parseCommon = require("../parse/abc_common");
 var Repeats = require("./repeats");
+var navigation = require("../data/navigation");
 var allStaffs = require("../data/all-staffs").allStaffs;
 
 (function() {
@@ -502,8 +503,10 @@ var allStaffs = require("../data/all-staffs").allStaffs;
 				}
 			}
 		}
+		// A D.S. or D.C. is usually written in one voice, but every voice goes back: find the marks in all of them.
+		var nav = navigation.findNavigation(voices.map(Repeats.timeline))
 		for (var r = 0; r < repeats.length; r++)
-			voices[r] = repeats[r].resolveRepeats()
+			voices[r] = repeats[r].resolveRepeats(nav)
 
 		// If there are tempo changes, make sure they are in all the voices. This must be done post process because all the elements in all the voices need to be created first.
 		insertTempoChanges(voices, tempoChanges);

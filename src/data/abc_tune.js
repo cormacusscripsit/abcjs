@@ -6,6 +6,7 @@ var sequence = require('../synth/abc_midi_sequencer');
 var flatten = require('../synth/abc_midi_flattener');
 var delineTune = require("./deline-tune");
 var allStaffsModule = require("./all-staffs");
+var navigation = require("./navigation");
 var allStaffs = allStaffsModule.allStaffs;
 var anyHiddenStaffs = allStaffsModule.anyHiddenStaffs;
 
@@ -532,6 +533,9 @@ var Tune = function() {
 		var nextIsBar = true;
 		var voices = this.makeVoicesArray();
 		var maxVoiceTimeMilliseconds = 0;
+		// A D.S. or D.C. is usually written in one voice, but every voice goes back: find the marks in all of them.
+		var timelines = voices.map(drawnTimeline);
+		var nav = navigation.findNavigation(timelines);
 		for (var v = 0; v < voices.length; v++) {
 			var voiceTime = time;
 			var voiceTimeMilliseconds = Math.round(voiceTime * 1000);
@@ -541,7 +545,8 @@ var Tune = function() {
 			var bpm = startingBpm;
 			timeDivider = this.getBeatLength() * bpm / 60;
 			var tempoDone = -1;
-			for (var elem = 0; elem < elements.length; elem++) {
+			var playTo = nav ? navigation.jumpIndex(timelines[v], nav) : elements.length;
+			for (var elem = 0; elem < playTo; elem++) {
 				var thisMeasure = elements[elem].measureNumber;
 				if (tempoDone !== thisMeasure && this.tempoLocations[thisMeasure]) {
 					bpm = this.tempoLocations[thisMeasure];
@@ -598,6 +603,28 @@ var Tune = function() {
 						startingRepeatElem = elem;
 				}
 			}
+			// After a D.S. or D.C.: the written music again, from the target to the Fine, without taking repeats
+			// and playing only the last of a set of endings.
+			var span = nav ? navigation.returnSpan(timelines[v], nav) : null;
+			if (span) {
+				var skips = drawnEndingSkips(elements);
+				nextIsBar = true;
+				for (var back = span.start; back <= span.end; back++) {
+					if (skips[back])
+						continue;
+					thisMeasure = elements[back].measureNumber;
+					if (tempoDone !== thisMeasure && this.tempoLocations[thisMeasure]) {
+						bpm = this.tempoLocations[thisMeasure];
+						timeDivider = warp * this.getBeatLength() * bpm / 60;
+						tempoDone = thisMeasure;
+					}
+					ret = this.addElementToEvents(eventHash, elements[back].elem, voiceTimeMilliseconds, elements[back].top, elements[back].height, elements[back].line, elements[back].measureNumber, timeDivider, isTiedState, nextIsBar);
+					isTiedState = ret.isTiedState;
+					nextIsBar = ret.nextIsBar;
+					voiceTime += ret.duration;
+					voiceTimeMilliseconds = Math.round(voiceTime * 1000);
+				}
+			}
 			maxVoiceTimeMilliseconds = Math.max(maxVoiceTimeMilliseconds, voiceTimeMilliseconds)
 		}
 		// now we have all the events, but if there are multiple voices then there may be events out of order or duplicated, so normalize it.
@@ -608,6 +635,50 @@ var Tune = function() {
 		this.addUsefulCallbackInfo(timingEvents, bpm*warp);
 		return timingEvents;
 	};
+
+	// A voice's drawn elements as a timeline for src/data/navigation.js, timed as addElementToEvents times them.
+	function drawnTimeline(elements) {
+		var time = 0;
+		return elements.map(function (entry) {
+			var el = entry.elem;
+			if (el.type === 'bar')
+				return { kind: 'bar', time: time, end: time };
+			if ((el.type === 'note' || el.type === 'rest') && !el.hint) {
+				var duration = el.durationClass ? el.durationClass : el.duration;
+				if (el.abcelem.rest && el.abcelem.rest.type === "spacer")
+					duration = 0;
+				var start = time;
+				time += duration;
+				return { kind: 'note', time: start, end: time, decoration: el.abcelem.decoration };
+			}
+			return { kind: 'other', time: time, end: time };
+		});
+	}
+
+	// The drawn elements to leave out on the way back after a D.S. or D.C.: every ending but the last of each set.
+	// A set is the endings between one start repeat and the next.
+	function drawnEndingSkips(elements) {
+		var skips = {};
+		var group = [];
+		function close() {
+			for (var e = 0; e + 1 < group.length; e++) {
+				for (var i = group[e]; i < group[e + 1]; i++)
+					skips[i] = true;
+			}
+			group = [];
+		}
+		for (var i = 0; i < elements.length; i++) {
+			var el = elements[i].elem;
+			if (el.type !== 'bar')
+				continue;
+			if (el.abcelem.type === "bar_left_repeat" || el.abcelem.type === "bar_dbl_repeat")
+				close();
+			if (el.abcelem.startEnding)
+				group.push(i);
+		}
+		close();
+		return skips;
+	}
 
 	this.addUsefulCallbackInfo = function(timingEvents, bpm) {
 		var millisecondsPerMeasure = this.millisecondsPerMeasure(bpm);

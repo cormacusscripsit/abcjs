@@ -1,4 +1,5 @@
 const parseCommon = require("../parse/abc_common");
+const navigation = require("../data/navigation");
 
 function Repeats(voice) {
 	this.sections = [{type: 'startRepeat', index: -1}]
@@ -21,7 +22,37 @@ function Repeats(voice) {
 			this.sections.push({type:"startRepeat", index: thisIndex})
 	}
 
-	this.resolveRepeats = function() {
+	// nav: what findNavigation() found in all the voices, or null. See src/data/navigation.js.
+	this.resolveRepeats = function(nav) {
+		var output = this.expandRepeats()
+		return nav ? this.navigate(output, nav) : output
+	}
+
+	// Play the expanded music up to the D.S. or D.C., then the written music from the target to the Fine,
+	// without taking repeats again and playing only the last of a set of endings.
+	this.navigate = function(output, nav) {
+		var span = navigation.returnSpan(timeline(voice), nav)
+		if (!span)
+			return output
+		var result = output.slice(0, navigation.jumpIndex(timeline(output), nav))
+		var skips = endingSkips(this.sections)
+		var i = span.start
+		while (i <= span.end) {
+			var skip = skipAt(skips, i)
+			if (skip) {
+				i = skip.to + 1
+				continue
+			}
+			var j = i
+			while (j + 1 <= span.end && !skipAt(skips, j + 1))
+				j++
+			duplicateSpan(voice, result, i, j)
+			i = j + 1
+		}
+		return result
+	}
+
+	this.expandRepeats = function() {
 		// this.sections contain all the interesting bars - start and end repeats.
 		var e
 
@@ -158,6 +189,47 @@ function Repeats(voice) {
 	}
 }
 
+// A voice's elements as a timeline for src/data/navigation.js: the notes and rests at their written time
+// (before repeats are expanded), the bar lines, and everything else.
+function timeline(elements) {
+	var time = 0
+	return elements.map(function (el) {
+		if (el.el_type === 'note') {
+			time = el.timing + el.duration
+			return { kind: 'note', time: el.timing, end: time, decoration: el.decoration }
+		}
+		return { kind: el.el_type === 'bar' ? 'bar' : 'other', time: time, end: time }
+	})
+}
+
+// The written elements to leave out on the way back after a D.S. or D.C.: every ending but the last of each set.
+// A set is the endings between one start repeat and the next.
+function endingSkips(sections) {
+	var skips = []
+	var group = []
+	function close() {
+		for (var e = 0; e + 1 < group.length; e++)
+			skips.push({ from: group[e] + 1, to: group[e + 1] })
+		group = []
+	}
+	for (var i = 0; i < sections.length; i++) {
+		if (sections[i].type === 'startRepeat')
+			close()
+		else if (sections[i].type === 'startEnding')
+			group.push(sections[i].index)
+	}
+	close()
+	return skips
+}
+
+function skipAt(skips, index) {
+	for (var i = 0; i < skips.length; i++) {
+		if (index >= skips[i].from && index <= skips[i].to)
+			return skips[i]
+	}
+	return null
+}
+
 function duplicateSpan(input, output, start, end) {
 	//console.log("dup", {start, end})
 	if (start < 0) start = 0
@@ -232,5 +304,7 @@ function startEndingNumbers(startEnding) {
 	}
 	return nums
 }
+
+Repeats.timeline = timeline;
 
 module.exports = Repeats;
