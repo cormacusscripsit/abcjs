@@ -33,7 +33,8 @@ What `v6.7.0-tuplet.10` carries on top of upstream's 6.7.0 release, oldest first
    repeats are not taken and only the last ending of a set is played. The `alcoda` forms and
    `!coda!` are still played as written. Upstream issue
    [paulrosen/abcjs#782](https://github.com/paulrosen/abcjs/issues/782) (open since 2022; the
-   maintainer: "on my list of improvements").
+   maintainer: "on my list of improvements"). The upstream pull request is not yet raised: how
+   to, with its text, in `PR-ds-fine.md`.
 
 ### The tuplet duration fix
 
