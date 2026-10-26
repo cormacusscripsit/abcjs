@@ -7,6 +7,7 @@ var flatten = require('../synth/abc_midi_flattener');
 var delineTune = require("./deline-tune");
 var allStaffsModule = require("./all-staffs");
 var navigation = require("./navigation");
+var parts = require("./parts");
 var allStaffs = allStaffsModule.allStaffs;
 var anyHiddenStaffs = allStaffsModule.anyHiddenStaffs;
 
@@ -533,9 +534,13 @@ var Tune = function() {
 		var nextIsBar = true;
 		var voices = this.makeVoicesArray();
 		var maxVoiceTimeMilliseconds = 0;
-		// A D.S. or D.C. is usually written in one voice, but every voice goes back: find the marks in all of them.
 		var timelines = voices.map(drawnTimeline);
-		var nav = navigation.findNavigation(timelines);
+		// A play order in the header: the parts are usually marked in one voice, but every voice plays the order,
+		// so find the parts in all of them. When there is one, a D.S. or D.C. is played as written.
+		var segments = parts.findSegments(timelines);
+		var playList = parts.playList(this.metaText.partOrder, segments);
+		// A D.S. or D.C. is usually written in one voice, but every voice goes back: find the marks in all of them.
+		var nav = playList ? null : navigation.findNavigation(timelines);
 		for (var v = 0; v < voices.length; v++) {
 			var voiceTime = time;
 			var voiceTimeMilliseconds = Math.round(voiceTime * 1000);
@@ -546,7 +551,21 @@ var Tune = function() {
 			timeDivider = this.getBeatLength() * bpm / 60;
 			var tempoDone = -1;
 			var playTo = nav ? navigation.jumpIndex(timelines[v], nav) : elements.length;
-			for (var elem = 0; elem < playTo; elem++) {
+			// With a play order, each part in turn, its repeats taken from its own start; otherwise the elements in order.
+			var steps = playList ? partSteps(timelines[v], segments, playList) : null;
+			var stepCount = steps ? steps.length : playTo;
+			for (var step = 0; step < stepCount; step++) {
+				var elem = steps ? steps[step].index : step;
+				if (steps && steps[step].partStart) {
+					startingRepeatElem = elem;
+					endingRepeatElem = -1;
+					nextIsBar = true;
+					if (step > 0) {
+						bpm = bpmAt(this.tempoLocations, elements[elem].measureNumber, startingBpm);
+						timeDivider = warp * this.getBeatLength() * bpm / 60;
+						tempoDone = -1;
+					}
+				}
 				var thisMeasure = elements[elem].measureNumber;
 				if (tempoDone !== thisMeasure && this.tempoLocations[thisMeasure]) {
 					bpm = this.tempoLocations[thisMeasure];
@@ -643,6 +662,8 @@ var Tune = function() {
 			var el = entry.elem;
 			if (el.type === 'bar')
 				return { kind: 'bar', time: time, end: time };
+			if (el.type === 'part')
+				return { kind: 'other', time: time, end: time, part: el.abcelem.title };
 			if ((el.type === 'note' || el.type === 'rest') && !el.hint) {
 				var duration = el.durationClass ? el.durationClass : el.duration;
 				if (el.abcelem.rest && el.abcelem.rest.type === "spacer")
@@ -653,6 +674,34 @@ var Tune = function() {
 			}
 			return { kind: 'other', time: time, end: time };
 		});
+	}
+
+	// The drawn elements to play for a play order, as { index, partStart }: each part's elements in turn.
+	function partSteps(timeline, segments, playList) {
+		var spans = parts.ranges(timeline, segments);
+		var steps = [];
+		for (var p = 0; p < playList.length; p++) {
+			var span = spans[playList[p]];
+			if (!span)
+				continue;
+			for (var i = span.start; i <= span.end; i++)
+				steps.push({ index: i, partStart: i === span.start });
+		}
+		return steps;
+	}
+
+	// The tempo in force at the start of a measure: the last tempo mark at or before it, or the starting tempo.
+	function bpmAt(tempoLocations, measure, startingBpm) {
+		var bpm = startingBpm;
+		var best = -1;
+		for (var key in tempoLocations) {
+			var m = parseInt(key, 10);
+			if (m <= measure && m > best) {
+				best = m;
+				bpm = tempoLocations[key];
+			}
+		}
+		return bpm;
 	}
 
 	// The drawn elements to leave out on the way back after a D.S. or D.C.: every ending but the last of each set.

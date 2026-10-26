@@ -1,5 +1,10 @@
 const parseCommon = require("../parse/abc_common");
 const navigation = require("../data/navigation");
+const parts = require("../data/parts");
+
+// What sets the way the notes after it sound. Before a part that is not played straight after the one written
+// before it, the last of each in force where it starts is put back.
+var STATE_TYPES = ["key", "meter", "transpose", "instrument", "channel", "beat", "drum", "gchordOn"]
 
 function Repeats(voice) {
 	this.sections = [{type: 'startRepeat', index: -1}]
@@ -25,7 +30,42 @@ function Repeats(voice) {
 	// nav: what findNavigation() found in all the voices, or null. See src/data/navigation.js.
 	this.resolveRepeats = function(nav) {
 		var output = this.expandRepeats()
-		return nav ? this.navigate(output, nav) : output
+		return withoutParts(nav ? this.navigate(output, nav) : output)
+	}
+
+	// Play the parts in the order of the header's P: field: each one with its own repeats, as if it were a tune
+	// of its own. segments and playList are what src/data/parts.js found in all the voices.
+	this.playParts = function(segments, playList) {
+		var spans = parts.ranges(timeline(voice), segments)
+		var result = []
+		var previous = -1
+		for (var p = 0; p < playList.length; p++) {
+			var span = spans[playList[p]]
+			if (span) {
+				var played = this.expandSpan(span)
+				if (playList[p] !== previous + 1)
+					played = stateAt(voice, span.start).concat(played)
+				// A copy each time: the flattener writes each element's time into it, so a part played twice must
+				// not be the same objects twice.
+				duplicateSpan(played, result, 0, played.length - 1)
+			}
+			previous = playList[p]
+		}
+		return withoutParts(result)
+	}
+
+	// The written elements from span.start to span.end, inclusive, with the repeats in them expanded.
+	this.expandSpan = function(span) {
+		var part = new Repeats(voice.slice(span.start, span.end + 1))
+		for (var i = 0; i < this.sections.length; i++) {
+			var section = this.sections[i]
+			if (section.index >= span.start && section.index <= span.end) {
+				var copy = Object.assign({}, section)
+				copy.index -= span.start
+				part.sections.push(copy)
+			}
+		}
+		return part.expandRepeats()
 	}
 
 	// Play the expanded music up to the D.S. or D.C., then the written music from the target to the Fine,
@@ -198,8 +238,24 @@ function timeline(elements) {
 			time = el.timing + el.duration
 			return { kind: 'note', time: el.timing, end: time, decoration: el.decoration }
 		}
+		if (el.el_type === 'part')
+			return { kind: 'other', time: time, end: time, part: el.title }
 		return { kind: el.el_type === 'bar' ? 'bar' : 'other', time: time, end: time }
 	})
+}
+
+// The last element of each of STATE_TYPES before voice[index], in the order written.
+function stateAt(voice, index) {
+	var last = {}
+	for (var i = 0; i < index; i++) {
+		if (STATE_TYPES.indexOf(voice[i].el_type) >= 0)
+			last[voice[i].el_type] = i
+	}
+	return Object.keys(last).map(function (type) { return last[type] }).sort(function (a, b) { return a - b }).map(function (i) { return voice[i] })
+}
+
+function withoutParts(elements) {
+	return elements.filter(function (el) { return el.el_type !== 'part' })
 }
 
 // The written elements to leave out on the way back after a D.S. or D.C.: every ending but the last of each set.

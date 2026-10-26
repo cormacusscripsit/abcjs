@@ -44,6 +44,7 @@ var EngraverController = function (paper, params) {
 	this.initialClef = params.initialClef;
 	this.timeBasedLayout = params.timeBasedLayout;
 	this.expandToWidest = !!params.expandToWidest;
+	this.hidePartOrder = !!params.hidePartOrder;
 	this.scale = params.scale ? parseFloat(params.scale) : 0;
 	this.classes = new Classes({ shouldAddClasses: params.add_classes });
 	if (!(this.scale > 0.1))
@@ -218,8 +219,17 @@ EngraverController.prototype.setupTune = function (abcTune, tuneNumber) {
 	return scale;
 };
 
+// The header fields to print: all of them, unless the play order (P: in the header) is to be played but not shown.
+EngraverController.prototype.printedMetaText = function (metaText) {
+	if (!this.hidePartOrder || !metaText.partOrder)
+		return metaText;
+	var shown = Object.assign({}, metaText);
+	delete shown.partOrder;
+	return shown;
+};
+
 EngraverController.prototype.constructTuneElements = function (abcTune) {
-	abcTune.topText = new TopText(abcTune.metaText, abcTune.metaTextInfo, abcTune.formatting, abcTune.lines, this.width, this.renderer.isPrint, this.renderer.padding.left, this.renderer.spacing, this.classes.shouldAddClasses, this.getTextSize);
+	abcTune.topText = new TopText(this.printedMetaText(abcTune.metaText), abcTune.metaTextInfo, abcTune.formatting, abcTune.lines, this.width, this.renderer.isPrint, this.renderer.padding.left, this.renderer.spacing, this.classes.shouldAddClasses, this.getTextSize);
 
 	// Generate the raw staff line data
 	var i;
@@ -265,7 +275,7 @@ EngraverController.prototype.engraveTune = function (abcTune, tuneNumber, lineOf
 	//Set the top text now that we know the width
 	if (this.expandToWidest && maxWidth > this.width + 1) {
   
-		abcTune.topText = new TopText(abcTune.metaText, abcTune.metaTextInfo, abcTune.formatting, abcTune.lines, maxWidth, this.renderer.isPrint, this.renderer.padding.left, this.renderer.spacing, this.classes.shouldAddClasses, this.getTextSize);
+		abcTune.topText = new TopText(this.printedMetaText(abcTune.metaText), abcTune.metaTextInfo, abcTune.formatting, abcTune.lines, maxWidth, this.renderer.isPrint, this.renderer.padding.left, this.renderer.spacing, this.classes.shouldAddClasses, this.getTextSize);
   
 		if ((abcTune.lines)&&(abcTune.lines.length > 0)){
 			var nlines = abcTune.lines.length;

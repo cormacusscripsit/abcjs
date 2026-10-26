@@ -7,6 +7,7 @@ var ParseMusic = require('./abc_parse_music');
 var Tokenizer = require('./abc_tokenizer');
 var wrap = require('./wrap_lines');
 var chordGrid = require('./chord-grid');
+var parts = require('../data/parts');
 
 var Tune = require('../data/abc_tune');
 var TuneBuilder = require('../parse/tune-builder');
@@ -203,6 +204,40 @@ var Parse = function() {
 		var clean_line = encode(line.substring(col_num - 64, col_num)) + '<span style="text-decoration:underline;font-size:1.3em;font-weight:bold;">' + bad_char + '</span>' + encode(line.substring(col_num + 1).substring(0,64));
 		addWarning("Music Line:" + tokenizer.lineIndex + ":" + (col_num+1) + ': ' + str + ":  " + clean_line);
 		addWarningObject({message:str, line:line, startChar: multilineVars.iChar + col_num, column: col_num});
+	};
+
+	// A part order in the header that names a part the body never starts is not played: say so, at the header line.
+	var checkPartOrder = function() {
+		var at = multilineVars.partOrderAt;
+		if (!at)
+			return;
+		var started = {};
+		for (var l = 0; l < tune.lines.length; l++) {
+			var staffs = tune.lines[l].staff || [];
+			for (var s = 0; s < staffs.length; s++) {
+				for (var v = 0; v < staffs[s].voices.length; v++) {
+					var voice = staffs[s].voices[v];
+					for (var e = 0; e < voice.length; e++) {
+						if (voice[e].el_type === 'part')
+							started[parts.orderText(voice[e].title).trim()] = true;
+					}
+				}
+			}
+		}
+		var missing = [];
+		for (var i = 0; i < at.order.length; i++) {
+			if (!started[at.order[i]] && missing.indexOf(at.order[i]) < 0)
+				missing.push(at.order[i]);
+		}
+		if (missing.length === 0)
+			return;
+		var lineIndex = tokenizer.lineIndex;
+		var iChar = multilineVars.iChar;
+		tokenizer.lineIndex = at.lineIndex;
+		multilineVars.iChar = at.iChar;
+		warn("The part order cannot be played, because no part " + missing.join(", ") + " is marked in the music (with P:" + missing[0] + ")", at.line, 0);
+		tokenizer.lineIndex = lineIndex;
+		multilineVars.iChar = iChar;
 	};
 
 	var header;
@@ -573,6 +608,7 @@ var Parse = function() {
 				addSymbols(tuneBuilder.getCurrentVoice(), '');
 			}
 			multilineVars.openSlurs = tuneBuilder.cleanUp(multilineVars.barsperstaff, multilineVars.staffnonote, multilineVars.openSlurs);
+			checkPartOrder();
 
 		} catch (err) {
 			if (err !== "normal_abort")

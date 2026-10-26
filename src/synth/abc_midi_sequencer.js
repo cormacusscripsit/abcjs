@@ -4,6 +4,7 @@ var sequence;
 var parseCommon = require("../parse/abc_common");
 var Repeats = require("./repeats");
 var navigation = require("../data/navigation");
+var parts = require("../data/parts");
 var allStaffs = require("../data/all-staffs").allStaffs;
 
 (function() {
@@ -329,7 +330,8 @@ var allStaffs = require("../data/all-staffs").allStaffs;
 									voices[voiceNumber].push(interpretMeter(elem));
 									break;
 								case 'part':
-									// TODO-PER: If there is a part section in the header, then this should probably affect the repeats.
+									// Where a part starts, for the play order in the header. Taken out again by resolveRepeats.
+									voices[voiceNumber].push({ el_type: 'part', title: elem.title });
 									break;
 								case 'stem':
 								case 'scale':
@@ -503,10 +505,14 @@ var allStaffs = require("../data/all-staffs").allStaffs;
 				}
 			}
 		}
+		// A play order in the header: the parts are usually marked in one voice, but every voice plays the order,
+		// so find the parts in all of them. When there is one, a D.S. or D.C. is played as written.
+		var segments = parts.findSegments(voices.map(Repeats.timeline))
+		var playList = parts.playList(abctune.metaText.partOrder, segments)
 		// A D.S. or D.C. is usually written in one voice, but every voice goes back: find the marks in all of them.
-		var nav = navigation.findNavigation(voices.map(Repeats.timeline))
+		var nav = playList ? null : navigation.findNavigation(voices.map(Repeats.timeline))
 		for (var r = 0; r < repeats.length; r++)
-			voices[r] = repeats[r].resolveRepeats(nav)
+			voices[r] = playList ? repeats[r].playParts(segments, playList) : repeats[r].resolveRepeats(nav)
 
 		// If there are tempo changes, make sure they are in all the voices. This must be done post process because all the elements in all the voices need to be created first.
 		insertTempoChanges(voices, tempoChanges);

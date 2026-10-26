@@ -269,6 +269,7 @@ declare module 'abcjs' {
 		dragColor?: string;
 		dragging?: boolean;
 		expandToWidest?: boolean;
+		hidePartOrder?: boolean;
 		foregroundColor?: string;
 		format?: { [attr in FormatAttributes]?: any };
 		header_only?: boolean;
