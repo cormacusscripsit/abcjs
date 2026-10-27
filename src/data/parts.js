@@ -6,11 +6,17 @@
 // taking the repeats inside it. A part is usually marked in one voice only, but it applies to all of them, so the
 // starts are found by time: each layer passes one timeline per voice, in the written order with repeats not yet
 // expanded, and every voice uses the times found in any of them. Music before the first part is played once,
-// first. An order that cannot be read, or that names a part the body never starts, is ignored: the tune is played
-// as written, and the parser warns.
+// first. A part's name is one capital letter, as in the order; a body P: with any other text (P: 2 = version in D)
+// is a label only, drawn but not a part, so its music stays in the part before it. An order that cannot be read,
+// or that names a part the body never starts, is ignored without a warning: the tune is played as written.
 
 var EPSILON = 0.0000001;
 var MAX_LENGTH = 1000; // the most parts an order may expand to
+
+// Whether a body P:'s text names a part the order can play: one capital letter, as parseOrder reads them.
+function isPartName(text) {
+	return /^[A-Z]$/.test(text);
+}
 
 // The header field's text, which the parser may have turned into font-change pieces.
 function orderText(partOrder) {
@@ -94,7 +100,7 @@ function findSegments(timelines) {
 		var timeline = timelines[v];
 		for (var i = 0; i < timeline.length; i++) {
 			var ev = timeline[i];
-			if (ev.part === undefined)
+			if (ev.part === undefined || !isPartName(orderText(ev.part).trim()))
 				continue;
 			var found = false;
 			for (var s = 0; s < starts.length; s++) {

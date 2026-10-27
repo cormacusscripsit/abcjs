@@ -3,7 +3,6 @@
 var parseCommon = require('./abc_common');
 var parseDirective = require('./abc_parse_directive');
 var parseKeyVoice = require('./abc_parse_key_voice');
-var parts = require('../data/parts');
 
 var ParseHeader = function(tokenizer, warn, multilineVars, tune, tuneBuilder) {
 	this.reset = function(tokenizer, warn, multilineVars, tune) {
@@ -530,16 +529,9 @@ var ParseHeader = function(tokenizer, warn, multilineVars, tune, tuneBuilder) {
 					break;
 				case  'P':
 					// TODO-PER: There is more to do with parts, but the writer doesn't care.
-					if (multilineVars.is_in_header) {
+					if (multilineVars.is_in_header)
 						tuneBuilder.addMetaText("partOrder", parseDirective.parseFontChangeLine(restOfLine), { startChar: multilineVars.iChar, endChar: multilineVars.iChar+line.length});
-						// The order is played (src/data/parts.js), so say when it cannot be. Whether its parts exist is
-						// known only at the end of the tune.
-						var order = parts.parseOrder(parts.orderText(restOfLine));
-						if (order.error)
-							warn("The part order cannot be played, because " + order.error, line, 0);
-						else
-							multilineVars.partOrderAt = { line: line, lineIndex: tokenizer.lineIndex, iChar: multilineVars.iChar, order: order.order };
-					} else
+					else
 						multilineVars.partForNextLine = { title: restOfLine, startChar: startChar, endChar: endChar};
 					break;
 				case  'Q':

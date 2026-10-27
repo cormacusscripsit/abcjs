@@ -6,7 +6,7 @@ deleted once the pull requests land.
 
 ## The patches
 
-What `v6.7.0-tuplet.11` carries on top of upstream's 6.7.0 release, oldest first:
+What `v6.7.0-tuplet.12` carries on top of upstream's 6.7.0 release, oldest first:
 
 1. The tuplet duration fix, below — upstream PR #1188.
 2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
@@ -42,12 +42,15 @@ What `v6.7.0-tuplet.11` carries on top of upstream's 6.7.0 release, oldest first
    all. A part that is not played straight after the one written before it gets back the key,
    meter, transpose, instrument and dynamics in force where it is written. Music before the first
    part plays once, first. An order that cannot be read, or that names a part the body never
-   starts, plays the tune as written and draws a warning; with an order in force, D.S., D.C. and
-   Fine are played as written. The new render option `hidePartOrder: true` plays the order without
-   printing it. Part names are single letters, as ABC 2.1 has them: a header `P:` used as free text
-   (`P:Chorus`, `P:Verse 1`) now draws a warning where it drew none. Upstream issue
+   starts, plays the tune as written, without a warning (from `.12`; `.11` warned); with an order
+   in force, D.S., D.C. and Fine are played as written. The new render option `hidePartOrder: true`
+   plays the order without printing it. Part names are single capital letters, as ABC 2.1 has
+   them: a body `P:` with other text (`P: 2 = version in D`, `[P:Verse 2]`) is a label only, drawn
+   but not a part, so its music stays in the part before it (from `.12`; under an order, `.11`
+   made it a part the order never named, and did not play it). Upstream issue
    [paulrosen/abcjs#1058](https://github.com/paulrosen/abcjs/issues/1058) (open since 2024; the
-   maintainer's worry there is multi-letter part names). No pull request written yet.
+   maintainer's worry there is multi-letter part names). No pull request will be raised: the
+   fork is abctool's to keep (owner, 2026-10-27).
 
 ### The tuplet duration fix
 
@@ -73,6 +76,7 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | `fix/inline-meter-rest` | tag `v6.7.0-tuplet.8` | `.8` plus the whole-bar rest after an inline meter. Tag `v6.7.0-tuplet.9`. |
 | `fix/ds-fine-playback` | tag `v6.7.0-tuplet.9` | `.9` plus D.S., D.C. and Fine in playback. Tag `v6.7.0-tuplet.10`. |
 | `fix/part-order-playback` | tag `v6.7.0-tuplet.10` | `.10` plus the header's play order in playback, and `hidePartOrder`. Tag `v6.7.0-tuplet.11`. |
+| `fix/part-order-labels` | tag `v6.7.0-tuplet.11` | `.11` with an unplayable order ignored silently, and a body `P:` that is not one capital letter a label, not a part. Tag `v6.7.0-tuplet.12`. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
@@ -82,7 +86,7 @@ Pin a **tag**, never the branch — a branch reference means a later `npm instal
 picks up whatever has been pushed since.
 
 ```json
-"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.11.tar.gz"
+"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.12.tar.gz"
 ```
 
 The tags are not all on one branch (see the table above): find the newest with

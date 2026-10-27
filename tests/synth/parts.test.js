@@ -2,7 +2,8 @@ describe("Parts: the play order in the header, in audio and timing", function ()
 	// A P: field in the header is the order the parts are played in; P: in the body (or [P:x]) marks where each one
 	// starts. Each part is played with its own repeats. A part marked in one voice applies to all of them. Music
 	// before the first part is played once, first. An order that cannot be read, or that names a part the body never
-	// starts, is not played: the tune plays as written, and the parser warns.
+	// starts, is not played: the tune plays as written, and nothing is said. A part's name is one capital letter; a
+	// body P: with other text is a label, and its music belongs to the part before it.
 	//
 	// Each case states the notes each track plays, in order, as pitches, and the cursor's events (milliseconds at a
 	// quarter note a second), so a failure says what came out.
@@ -40,6 +41,18 @@ describe("Parts: the play order in the header, in audio and timing", function ()
 			abc: head + 'P:(A(B)2).A\nK:C\nP:A\nCDEF|\nP:B\nGABc|]\n',
 			tracks: [[C, G, G, C].join(" ")],
 			events: ms(0, 16)
+		},
+		{
+			name: "a body P: that is not a letter is a label: its music stays in the part before it",
+			abc: head + 'P:BA\nK:C\nP:A\nCDEF|\nP: 2 = version in D\nGABc|\nP:B\ndefg|]\n',
+			tracks: [["74 76 77 79", C, G].join(" ")],
+			events: ms(0, 12)
+		},
+		{
+			name: "an inline [P:...] that is not a letter is a label too",
+			abc: head + 'P:BA\nK:C\n[P:A]CDEF|[P:Verse 2]GABc|[P:B]defg|]\n',
+			tracks: [["74 76 77 79", C, G].join(" ")],
+			events: ms(0, 12)
 		},
 		{
 			name: "inline [P:B] in the middle of a line",
@@ -253,18 +266,14 @@ describe("Parts: the play order in the header, in audio and timing", function ()
 			chai.assert.deepEqual(warnings(head + 'K:C\nP:A\nCDEF|\nP: 2 = version in D\nK:D\nGABc|]\n'), []);
 		});
 
-		it("names a part the body never starts, at the header line", function () {
-			var got = warnings(head + 'P:ABC\nK:C\nP:A\nCDEF|\nP:B\nGABc|]\n');
-			chai.assert.lengthOf(got, 1);
-			chai.assert.match(got[0], /^Music Line:4:1: The part order cannot be played, because no part C is marked in the music/);
+		it("none for an order naming a part the body never starts: it is ignored", function () {
+			chai.assert.deepEqual(warnings(head + 'P:ABC\nK:C\nP:A\nCDEF|\nP:B\nGABc|]\n'), []);
 		});
 
-		it("says why an order cannot be read", function () {
-			chai.assert.match(warnings(head + 'P:3A\nK:C\nP:A\nCDEF|]\n')[0], /a number comes before the part it repeats: write A3, not 3A/);
-			chai.assert.match(warnings(head + 'P:(AB\nK:C\nP:A\nCDEF|]\n')[0], /a group is not closed/);
-			chai.assert.match(warnings(head + 'P:ab\nK:C\nP:A\nCDEF|]\n')[0], /'a' is not a part name/);
-			chai.assert.match(warnings(head + 'P:A0\nK:C\nP:A\nCDEF|]\n')[0], /a part is played zero times/);
-			chai.assert.match(warnings(head + 'P:(((A9)9)9)9\nK:C\nP:A\nCDEF|]\n')[0], /it plays more than 1000 parts/);
+		it("none for an order that cannot be read, or free text: it is ignored", function () {
+			["P:3A", "P:(AB", "P:ab", "P:A0", "P:(((A9)9)9)9", "P:Chorus", "P:Verse 1"].forEach(function (order) {
+				chai.assert.deepEqual(warnings(head + order + '\nK:C\nP:A\nCDEF|]\n'), [], order);
+			});
 		});
 	});
 
