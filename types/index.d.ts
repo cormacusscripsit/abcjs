@@ -1345,15 +1345,53 @@ declare module 'abcjs' {
 
 	export interface MidiBuffer {
 		init(params?: MidiBufferOptions): Promise<MidiBufferPromise>
+		/** Builds the index of sounds, not the sound: played a window at a time (fork, windows). */
 		prime(): Promise<{ status: string, duration: number}>
-		start(): void
+		/** Resolves once scheduled, with the clock's time at which the tune's 0 sits (fork, windows). */
+		start(): Promise<number | null>
 		pause(): number
-		resume(): void
-		seek(position: number, units?: ProgressUnit): void
+		resume(): Promise<number | null>
+		seek(position: number, units?: ProgressUnit): Promise<number | null> | void
 		stop(): number
-		download(): string // returns audio buffer in wav format as a reference to a blob
+		/** The whole tune as a WAV blob URL, built on request (fork, windows). */
+		download(): Promise<string>
 		getIsRunning(): boolean
-		getAudioBuffer(): AudioBuffer | undefined
+		/** The whole tune in one buffer, built on request (fork, windows). */
+		getAudioBuffer(): Promise<AudioBuffer>
+		/** The tune's length in frames at the context's rate, the fade included (fork, windows). */
+		totalFrames(): number
+		/** The music's length in seconds, without the fade (fork, windows). */
+		musicSeconds(): number
+		/** Frames [from, from + count) of the tune, rendered on their own (fork, windows). */
+		renderFrames(from: number, count: number): Promise<AudioBuffer>
+	}
+
+	/** A pass of a timeline: a primed synth, at an offset in heard seconds (fork, windows). */
+	export interface TimelinePass {
+		synth: MidiBuffer;
+		at: number;
+	}
+
+	export interface TimelineOptions {
+		windowSec?: number;
+		firstWindowSec?: number;
+		aheadSec?: number;
+		leadSec?: number;
+		tickMs?: number;
+		onWindow?: (window: { from: number; frames: number; when: number; offset: number }) => void;
+		onEnd?: () => void;
+	}
+
+	/** Plays passes back to back, a window at a time, on whole frames (fork, windows). */
+	export interface Timeline {
+		setPasses(passes: TimelinePass[]): void;
+		start(fromSec: number): Promise<number | null>;
+		stop(): void;
+		position(): number;
+		held(): number;
+		totalFrames(): number;
+		renderFrames(from: number, count: number): Promise<AudioBuffer>;
+		isRunning: boolean;
 	}
 
 	export interface SynthInitResponse {
@@ -1429,6 +1467,7 @@ declare module 'abcjs' {
 		let pitchToNoteName: [string]
 		let SynthController: { new (): SynthObjectController }
 		let CreateSynth: { new (): MidiBuffer }
+		let Timeline: { new (options?: TimelineOptions): Timeline }
 		let SynthSequence: { new (): SynthSequenceClass }
 
 		export function supportsAudio(): boolean

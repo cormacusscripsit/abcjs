@@ -8,6 +8,8 @@ var instrumentIndexToName = require('./instrument-index-to-name');
 var downloadBuffer = require('./download-buffer');
 var placeNote = require('./place-note');
 var soundsCache = require('./sounds-cache');
+var renderFramesModule = require('./render-frames');
+var Timeline = require('./timeline');
 
 // TODO-PER: remove the midi tests from here: I don't think the object can be constructed unless it passes.
 var notSupportedMessage = "MIDI is not supported in this browser.";
@@ -289,108 +291,62 @@ function CreateSynth() {
 		});
 	});
 
+	// Windows (fork, `feat/windows`): prime() no longer renders the whole tune
+	// into one buffer, 23 MB a minute, which a slowed tune made hundreds of MB.
+	// It builds the index of distinct sounds and where they start; the sound is
+	// rendered a window at a time (`renderFrames`), played by a timeline.
+	// Nor does it resume a suspended context any more, which undid a suspension
+	// the system had made whenever a tune was primed: the caller owns that.
 	self.prime = function() {
-		// At this point all of the notes are loaded. This function writes them into the output buffer.
-		// Most music has a lot of repeating notes. If a note is the same pitch, volume, length, etc. as another one,
-		// It saves a lot of time to just create it once and place it repeatedly where ever it needs to be.
-		var fadeTimeSec = self.fadeLength/1000;
 		self.isRunning = false;
 		if (!self.audioBufferPossible)
 			return Promise.reject(new Error(notSupportedMessage));
 		if (self.debugCallback)
 			self.debugCallback("prime called");
-
 		return new Promise(function(resolve, reject) {
 			try {
-				var startTime = activeAudioContext().currentTime;
+				var sampleRate = activeAudioContext().sampleRate;
 				var tempoMultiplier = self.millisecondsPerMeasure / 1000 / self.meterSize;
 				self.duration = self.flattened.totalDuration * tempoMultiplier;
 				if (self.duration <= 0) {
 					self.audioBuffers = [];
+					self._index = null;
 					return resolve({status: "empty", seconds: 0});
 				}
-				self.duration += fadeTimeSec;
-				var totalSamples = Math.floor(activeAudioContext().sampleRate * self.duration);
-
-				// There might be a previous run that needs to be turned off.
+				self.duration += self.fadeLength/1000;
 				self.stop();
-
 				var noteMapTracks = createNoteMap(self.flattened);
-
 				if (self.options.swing) {
-					// If we have a drum intro, then the pickup is already incorporated into the beat.
-					// That is, without a drum intro, the first note starts at 0 whether it
-					// is a pickup or not. With a drum intro, the first note will be in its
-					// proper place.
 					var pickupLength = self.options.drumIntro ? 0 : self.pickupLength
 					addSwing(noteMapTracks, self.options.swing, self.meterFraction, pickupLength)
 				}
-
 				if (self.sequenceCallback)
 					self.sequenceCallback(noteMapTracks, self.callbackContext);
-
 				var panDistances = setPan(noteMapTracks.length, self.pan);
-
-				// Create a simple list of all the unique sounds in this music and where they should be placed.
-				// There appears to be a limit on how many audio buffers can be created at once so this technique limits the number needed.
-				var uniqueSounds = {};
-				noteMapTracks.forEach(function (noteMap, trackNumber) {
-					var panDistance = panDistances && panDistances.length > trackNumber ? panDistances[trackNumber] : 0;
-					noteMap.forEach(function (note) {
-						var key = note.instrument + ':' + note.pitch + ':' + note.volume + ':' + Math.round((note.end - note.start) * 1000) / 1000 + ':' + panDistance + ':' + tempoMultiplier + ':' + (note.cents ? note.cents : 0);
-						if (self.debugCallback)
-							self.debugCallback("noteMapTrack " + key)
-						if (!uniqueSounds[key])
-							uniqueSounds[key] = [];
-						uniqueSounds[key].push(note.start);
-					});
-				});
-
-				// Now that we know what we are trying to create, construct the audio buffer by creating each sound and placing it.
-				var allPromises = [];
-				var audioBuffer = activeAudioContext().createBuffer(2, totalSamples, activeAudioContext().sampleRate);
-				for (var key2 = 0; key2 < Object.keys(uniqueSounds).length; key2++) {
-					var k = Object.keys(uniqueSounds)[key2];
-					var parts = k.split(":");
-					var cents = parts[6] !== undefined ? parseFloat(parts[6]) : 0;
-					parts = {instrument: parts[0], pitch: parseInt(parts[1], 10), volume: parseInt(parts[2], 10), len: parseFloat(parts[3]), pan: parseFloat(parts[4]), tempoMultiplier: parseFloat(parts[5]), cents: cents};
-					allPromises.push(placeNote(audioBuffer, activeAudioContext().sampleRate, parts, uniqueSounds[k], self.soundFontVolumeMultiplier, self.programOffsets[parts.instrument], fadeTimeSec, self.noteEnd / 1000, self.debugCallback));
-				}
-				self.audioBuffers = [audioBuffer];
-
-				if (self.debugCallback) {
-					self.debugCallback("sampleRate = " + activeAudioContext().sampleRate);
-					self.debugCallback("totalSamples = " + totalSamples);
-					self.debugCallback("creationTime = " + Math.floor((activeAudioContext().currentTime - startTime) * 1000) + "ms");
-				}
-
-				function resolveData(me) {
-					var duration = me && me.audioBuffers && me.audioBuffers.length > 0 ? me.audioBuffers[0].duration : 0;
-					return {status: activeAudioContext().state, duration: duration}
-				}
-
-				Promise.all(allPromises).then(function () {
-					// Safari iOS can mess with the audioContext state, so resume if needed.
-					if (activeAudioContext().state === "suspended") {
-						activeAudioContext().resume().then(function () {
-							resolve(resolveData(self));
-						})
-					} else if (activeAudioContext().state === "interrupted") {
-						activeAudioContext().suspend().then(function () {
-							activeAudioContext().resume().then(function () {
-								resolve(resolveData(self));
-							})
-						})
-					} else {
-						resolve(resolveData(self));
-					}
-				}).catch(function (error) {
-					reject(error)
-				});
+				self._index = renderFramesModule.buildIndex(self, sampleRate, noteMapTracks, panDistances);
+				self.audioBuffers = [];
+				resolve({status: activeAudioContext().state, duration: self._index.totalFrames / sampleRate});
 			} catch (error) {
 				reject(error)
 			}
 		});
+	};
+
+	// The tune's length in frames at the context's rate: the music and the fade.
+	self.totalFrames = function() {
+		return self._index ? self._index.totalFrames : 0;
+	};
+
+	// The music's length in seconds, without the last note's fade.
+	self.musicSeconds = function() {
+		return self._index ? self._index.musicFrames / self._index.sampleRate : 0;
+	};
+
+	// Frames [from, from + count) of this tune, rendered on their own.
+	self.renderFrames = function(from, count) {
+		if (!self._index)
+			return Promise.reject(new Error("prime() before renderFrames()"));
+		return renderFramesModule.renderFrames(self._index, from, count, self.soundFontVolumeMultiplier);
 	};
 
 	function setPan(numTracks, panParam) {
@@ -444,34 +400,45 @@ function CreateSynth() {
 		return null;
 	}
 
-	// This is called after everything is set up, so it can quickly make sound
+	// Played a window at a time by a timeline of this one tune.
+	self._timeline = null;
+	self._one = function() {
+		if (!self._timeline) {
+			self._timeline = new Timeline({ onEnd: function () {
+				if (self.onEnded) self.onEnded(self.callbackContext);
+			}});
+			self._timeline.setPasses([{ synth: self, at: 0 }]);
+		}
+		return self._timeline;
+	};
+
+	// Starts where it was paused or sought to. Resolves once the sound is
+	// scheduled, with the clock's time at which the tune's 0 sits.
 	self.start = function() {
 		if (!self.audioBufferPossible)
 			throw new Error(notSupportedMessage);
 		if (self.debugCallback)
 			self.debugCallback("start called");
-
-		var resumePosition = self.pausedTimeSec ? self.pausedTimeSec : 0;
-		self._kickOffSound(resumePosition);
-		self.startTimeSec = activeAudioContext().currentTime - resumePosition;
+		var from = self.pausedTimeSec ? self.pausedTimeSec : 0;
 		self.pausedTimeSec = undefined;
-
-		if (self.debugCallback)
-			self.debugCallback("MIDI STARTED", self.startTimeSec);
+		self.isRunning = true;
+		return self._one().start(from).then(function(origin) {
+			if (origin !== null) self.startTimeSec = origin;
+			return origin;
+		});
 	};
 
 	self.pause = function() {
 		if (!self.audioBufferPossible)
 			throw new Error(notSupportedMessage);
-		if (self.debugCallback)
-			self.debugCallback("pause called");
-
-		self.pausedTimeSec = self.stop();
-		return self.pausedTimeSec;
+		var at = self.isRunning ? self._one().position() : (self.pausedTimeSec || 0);
+		self.stop();
+		self.pausedTimeSec = at;
+		return at;
 	};
 
 	self.resume = function() {
-		self.start();
+		return self.start();
 	};
 
 	self.seek = function(position, units) {
@@ -484,39 +451,26 @@ function CreateSynth() {
 				offset = position * self.millisecondsPerMeasure / self.beatsPerMeasure / 1000;
 				break;
 			default:
-				// this is "percent" or any illegal value
 				offset = (self.duration-self.fadeLength/1000) * position;
 				break;
 		}
-
-		// TODO-PER: can seek when paused or when playing
 		if (!self.audioBufferPossible)
 			throw new Error(notSupportedMessage);
 		if (self.debugCallback)
 			self.debugCallback("seek called sec=" + offset);
-
 		if (self.isRunning) {
-			self.stop();
-			self._kickOffSound(offset);
-		} else {
+			self._one().stop();
 			self.pausedTimeSec = offset;
+			return self.start();
 		}
 		self.pausedTimeSec = offset;
 	};
 
 	self.stop = function() {
+		var elapsed = self.isRunning && self._timeline ? self._timeline.position() : 0;
 		self.isRunning = false;
 		self.pausedTimeSec = undefined;
-		self.directSource.forEach(function(source) {
-			try {
-				source.stop();
-			} catch (error) {
-				// We don't care if self succeeds: it might fail if something else turned off the sound or it ended for some reason.
-				console.log("direct source didn't stop:", error)
-			}
-		});
-		self.directSource = [];
-		var elapsed = activeAudioContext().currentTime - self.startTimeSec;
+		if (self._timeline) self._timeline.stop();
 		return elapsed;
 	};
 	self.finished = function() {
@@ -525,12 +479,16 @@ function CreateSynth() {
 		self.isRunning = false;
 	};
 
-	self.download = function() {
-		return downloadBuffer(self);
+	// The whole tune in one buffer, built on request: the one place a whole
+	// buffer is ever made. Both now resolve a Promise.
+	self.getAudioBuffer = function() {
+		return self.renderFrames(0, self.totalFrames());
 	};
 
-	self.getAudioBuffer = function() {
-		return self.audioBuffers[0];
+	self.download = function() {
+		return self.getAudioBuffer().then(function(buffer) {
+			return downloadBuffer({ audioBuffers: [buffer] });
+		});
 	};
 
 	self.getIsRunning = function() {

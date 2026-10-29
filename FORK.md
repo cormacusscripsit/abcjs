@@ -1,12 +1,13 @@
 # About this fork
 
-This is a fork of [paulrosen/abcjs](https://github.com/paulrosen/abcjs). It exists to carry
-a few patches until they are upstream. It is **not** a long-lived divergence and should be
-deleted once the pull requests land.
+This is a fork of [paulrosen/abcjs](https://github.com/paulrosen/abcjs), carrying the patches
+abctool needs. It began as one patch to carry until upstream took it; since `.11` it is
+abctool's to keep (owner, 2026-10-27), and from `.13` it plays sound in a way upstream does not
+(patch 10). Patches that suit upstream are offered there; the rest stay here.
 
 ## The patches
 
-What `v6.7.0-tuplet.12` carries on top of upstream's 6.7.0 release, oldest first:
+What `v6.7.0-tuplet.13` carries on top of upstream's 6.7.0 release, oldest first:
 
 1. The tuplet duration fix, below — upstream PR #1188.
 2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
@@ -51,6 +52,30 @@ What `v6.7.0-tuplet.12` carries on top of upstream's 6.7.0 release, oldest first
    [paulrosen/abcjs#1058](https://github.com/paulrosen/abcjs/issues/1058) (open since 2024; the
    maintainer's worry there is multi-letter part names). No pull request will be raised: the
    fork is abctool's to keep (owner, 2026-10-27).
+10. The sound in windows (`feat/windows`, from `.13`): `prime()` no longer renders the whole tune
+    into one AudioBuffer (23 MB a minute at 48 kHz, so a tune slowed down for practice asked a
+    phone for hundreds of megabytes, and an iPhone SE took 31 s to build one before any sound).
+    It builds an index of the tune's distinct sounds and where each starts, and the sound is
+    rendered a stretch at a time:
+    - `synth.renderFrames(from, count)` renders those frames alone, each distinct sound by the
+      graph `placeNote` builds, trimmed where its sample ends, a few at a time, mixed in a fixed
+      (sorted) order. Windows joined end to end equal the whole render to the bit; the whole
+      render equals `.12`'s `prime()` within one float32 step, which is `.12` summing notes in the
+      order their renders finished. `synth.totalFrames()` and `synth.musicSeconds()` with it.
+    - `abcjs.synth.Timeline` plays passes (a primed synth at an offset in heard seconds) a window
+      at a time: windows on whole frames, back to back; the first one after a start ready
+      before its time is chosen, so nothing at a start is dropped, and a later one ready late
+      drops what it missed and rejoins the clock; the next window chosen by its number from a
+      timer and the clock, never by counting `ended` (Chromium fires it twice); a join between
+      passes mixed into one window like any two notes; `onEnd` once, after the last window,
+      never for a stop. `start(fromSec)` resolves with the clock's time at which heard 0 sits.
+    - `CreateSynth`'s own `start`, `pause`, `resume`, `seek` and `stop` play through a one-pass
+      timeline, and `start` and `resume` now resolve a Promise. `getAudioBuffer()` and
+      `download()` build the whole tune on request and resolve Promises. Windows always: there
+      is no whole-buffer playback mode.
+    - `prime()` no longer resumes a suspended audio context (its Safari workaround), which undid
+      a suspension the system had made whenever a tune was primed. The caller owns resuming.
+    No pull request: abctool's design, `plans/abcjs-windows.md` there; its tests are the gate.
 
 ### The tuplet duration fix
 
@@ -77,6 +102,7 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | `fix/ds-fine-playback` | tag `v6.7.0-tuplet.9` | `.9` plus D.S., D.C. and Fine in playback. Tag `v6.7.0-tuplet.10`. |
 | `fix/part-order-playback` | tag `v6.7.0-tuplet.10` | `.10` plus the header's play order in playback, and `hidePartOrder`. Tag `v6.7.0-tuplet.11`. |
 | `fix/part-order-labels` | tag `v6.7.0-tuplet.11` | `.11` with an unplayable order ignored silently, and a body `P:` that is not one capital letter a label, not a part. Tag `v6.7.0-tuplet.12`. |
+| `feat/windows` | tag `v6.7.0-tuplet.12` | `.12` plus the sound in windows and the timeline player. Tag `v6.7.0-tuplet.13`. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
@@ -86,7 +112,7 @@ Pin a **tag**, never the branch — a branch reference means a later `npm instal
 picks up whatever has been pushed since.
 
 ```json
-"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.12.tar.gz"
+"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.13.tar.gz"
 ```
 
 The tags are not all on one branch (see the table above): find the newest with

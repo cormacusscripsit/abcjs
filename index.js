@@ -48,6 +48,7 @@ abcjs.setGlyph = glyphs.setSymbol;
 abcjs.strTranspose = strTranspose;
 
 var CreateSynth = require('./src/synth/create-synth');
+var Timeline = require('./src/synth/timeline');
 var instrumentIndexToName = require('./src/synth/instrument-index-to-name');
 var pitchToNoteName = require('./src/synth/pitch-to-note-name');
 var SynthSequence = require('./src/synth/synth-sequence');
@@ -62,6 +63,7 @@ var midiRenderer = require('./src/synth/abc_midi_renderer');
 
 abcjs.synth = {
 	CreateSynth: CreateSynth,
+	Timeline: Timeline,
 	instrumentIndexToName: instrumentIndexToName,
 	pitchToNoteName: pitchToNoteName,
 	SynthController: SynthController,
