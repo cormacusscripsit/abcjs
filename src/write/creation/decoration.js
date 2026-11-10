@@ -164,6 +164,18 @@ var stackedDecoration = function (decoration, width, abselem, yPos, positioning,
 
 		incrementPlacement(placement, height);
 	}
+	function breathDecoration() {
+		// The standard says "after note": the comma goes to the right of the note, its dots and flags,
+		// just above the top line, in the gap before the next note. addRight reserves room for it,
+		// so the next note is pushed along rather than drawn under the comma; once the line is
+		// spaced, layout centres it in whatever gap there is (centerBreaths).
+		var symbol = ",";
+		var deltaX = abselem.w + 3;
+		var breath = new RelativeElement(symbol, deltaX, glyphs.getSymbolWidth(symbol) + 3, 11, { klass: 'ornament', thickness: glyphs.symbolHeightInPitches(symbol) });
+		breath.noteRight = abselem.w;
+		abselem.breath = breath;
+		abselem.addRight(breath);
+	}
 
 	var symbolList = {
 		"+": "scripts.stopped",
@@ -251,11 +263,14 @@ var stackedDecoration = function (decoration, width, abselem, yPos, positioning,
 			case "downbow":
 			case "upbow":
 			case "fermata":
-			case "breath":
 			case "umarcato":
 			case "coda":
 			case "segno":
 				symbolDecoration(symbolList[decoration[i]], positioning);
+				hasOne = true;
+				break;
+			case "breath":
+				breathDecoration();
 				hasOne = true;
 				break;
 			case "invertedfermata":

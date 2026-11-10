@@ -76,6 +76,7 @@ var setXSpacing = function (renderer, width, space, staffGroup, formatting, isLa
 	}
 	//dumpGroup("after",staffGroup)
 	centerWholeRests(staffGroup.voices);
+	centerBreaths(staffGroup.voices);
 	return staffGroup.w - leftEdge
 };
 
@@ -133,6 +134,27 @@ function centerWholeRests(voices) {
 				var after = voice.children[j + 1];
 				absElem.center(before, after);
 			}
+		}
+	}
+}
+
+function centerBreaths(voices) {
+	// A breath mark is drawn after its note: centre it between the note (with its dots and flags) and the
+	// left edge of whatever follows, including that element's accidentals. At the end of a line it stays put.
+	for (var i = 0; i < voices.length; i++) {
+		var voice = voices[i];
+		for (var j = 0; j < voice.children.length - 1; j++) {
+			var absElem = voice.children[j];
+			var breath = absElem.breath;
+			if (!breath)
+				continue;
+			var after = voice.children[j + 1];
+			var left = absElem.x + breath.noteRight;
+			var right = after.x + after.extraw;
+			var glyphWidth = breath.w - 3;
+			var x = (left + right) / 2 - glyphWidth / 2;
+			if (x > breath.x)
+				breath.x = x;
 		}
 	}
 }
