@@ -7,7 +7,7 @@ abctool's to keep (owner, 2026-10-27), and from `.13` it plays sound in a way up
 
 ## The patches
 
-What `v6.7.0-tuplet.13` carries on top of upstream's 6.7.0 release, oldest first:
+What `v6.7.0-tuplet.14` carries on top of upstream's 6.7.0 release, oldest first:
 
 1. The tuplet duration fix, below — upstream PR #1188.
 2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
@@ -76,6 +76,12 @@ What `v6.7.0-tuplet.13` carries on top of upstream's 6.7.0 release, oldest first
     - `prime()` no longer resumes a suspended audio context (its Safari workaround), which undid
       a suspension the system had made whenever a tune was primed. The caller owns resuming.
     No pull request: abctool's design, `plans/abcjs-windows.md` there; its tests are the gate.
+11. `!breath!` after its note (`fix/breath-after-note`, from `.14`): ABC 2.1 defines it as "breath
+    mark (apostrophe-like) after note", and abcm2ps and MusicXML's `breath-mark` draw it there,
+    but abcjs centred the comma above the note it decorates. It is now added to the right of the
+    note, its dots and flags, just above the top line, with room reserved for it in spacing; after
+    the line is spaced, `centerBreaths` (beside `centerWholeRests`) centres it between the note
+    and the left edge of the next element. No pull request (owner, 2026-11-09).
 
 ### The tuplet duration fix
 
@@ -103,6 +109,7 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | `fix/part-order-playback` | tag `v6.7.0-tuplet.10` | `.10` plus the header's play order in playback, and `hidePartOrder`. Tag `v6.7.0-tuplet.11`. |
 | `fix/part-order-labels` | tag `v6.7.0-tuplet.11` | `.11` with an unplayable order ignored silently, and a body `P:` that is not one capital letter a label, not a part. Tag `v6.7.0-tuplet.12`. |
 | `feat/windows` | tag `v6.7.0-tuplet.12` | `.12` plus the sound in windows and the timeline player. Tag `v6.7.0-tuplet.13`. |
+| `fix/breath-after-note` | tag `v6.7.0-tuplet.13` | `.13` plus `!breath!` drawn after its note. Tag `v6.7.0-tuplet.14`; this file's entry for it came one commit after the tag. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
