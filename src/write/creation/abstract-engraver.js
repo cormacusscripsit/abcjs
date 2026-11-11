@@ -163,7 +163,8 @@ AbstractEngraver.prototype.createABCStaff = function (staffgroup, abcstaff, temp
 			voice.addChild(clef);
 			this.startlimitelem = clef; // limit ties here
 		}
-		var keySig = createKeySignature(abcstaff.key, this.tuneNumber);
+		// A percussion staff draws no key signature: it takes no key in the sound either.
+		var keySig = voice.isPercussion ? null : createKeySignature(abcstaff.key, this.tuneNumber);
 		if (keySig) {
 			voice.addChild(keySig);
 			this.startlimitelem = keySig; // limit ties here
@@ -332,7 +333,7 @@ AbstractEngraver.prototype.createABCElement = function (isFirstStaff, isSingleLi
 			if (voice.duplicate && elemset.length > 0) elemset[0].invisible = true;
 			break;
 		case "key":
-			var absKey = createKeySignature(elem, this.tuneNumber);
+			var absKey = voice.isPercussion ? null : createKeySignature(elem, this.tuneNumber);
 			if (absKey) {
 				elemset[0] = absKey;
 				this.startlimitelem = elemset[0]; // limit ties here
