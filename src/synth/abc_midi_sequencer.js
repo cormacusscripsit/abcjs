@@ -178,14 +178,18 @@ var allStaffs = require("../data/all-staffs").allStaffs;
 						if (transpose && staff.clef.type === "perc")
 							voices[voiceNumber].push({ el_type: 'transpose', transpose: 0 });
 
-						if (staff.clef && staff.clef.type === 'perc' && !channelExplicitlySet) {
+						// A percussion staff takes no key: each drum is the note written, with its own accidentals only.
+						var isPerc = staff.clef && staff.clef.type === 'perc';
+						if (isPerc && !channelExplicitlySet) {
 							for (var cl = 0; cl < voices[voiceNumber].length; cl++) {
 								if (voices[voiceNumber][cl].el_type === 'instrument')
 									voices[voiceNumber][cl].program = PERCUSSION_PROGRAM;
 							}
-						} else if (staff.key) {
-							addKey(voices[voiceNumber], staff.key);
 						}
+						if (isPerc)
+							addIfDifferent(voices[voiceNumber], { el_type: 'key', accidentals: [] });
+						else if (staff.key)
+							addKey(voices[voiceNumber], staff.key);
 						if (staff.meter) {
 							addMeter(voices[voiceNumber], staff.meter);
 						}
@@ -295,7 +299,8 @@ var allStaffs = require("../data/all-staffs").allStaffs;
 									break;
 								case "key":
 								case "keySignature":
-									addKey(voices[voiceNumber], elem);
+									if (!isPerc)
+										addKey(voices[voiceNumber], elem);
 									break;
 								case "meter":
 									addMeter(voices[voiceNumber], elem);

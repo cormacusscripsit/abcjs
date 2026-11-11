@@ -7,7 +7,7 @@ abctool's to keep (owner, 2026-10-27), and from `.13` it plays sound in a way up
 
 ## The patches
 
-What `v6.7.0-tuplet.13` carries on top of upstream's 6.7.0 release, oldest first:
+What `v6.7.0-tuplet.15` carries on top of upstream's 6.7.0 release, oldest first:
 
 1. The tuplet duration fix, below — upstream PR #1188.
 2. Dropping the dead `docs/.vuepress/dist` submodule, so the fork installs at all.
@@ -76,6 +76,16 @@ What `v6.7.0-tuplet.13` carries on top of upstream's 6.7.0 release, oldest first
     - `prime()` no longer resumes a suspended audio context (its Safari workaround), which undid
       a suspension the system had made whenever a tune was primed. The caller owns resuming.
     No pull request: abctool's design, `plans/abcjs-windows.md` there; its tests are the gate.
+11. `!breath!` drawn after its note (`fix/breath-after-note`, from `.14`): ABC 2.1 puts the breath
+    mark after the note, and abcjs centred it above the note. It is now centred in the gap before
+    the next element, with room reserved for it in spacing.
+12. A percussion staff takes no key (`fix/perc-no-key`, from `.15`): a `clef=perc` staff was given
+    no key of its own, and the flattener keeps one set of key accidentals for the whole tune, so a
+    drum voice sounded with the key the voice before it ended in (or the header's, when it came
+    first, or its staff's when a `%%MIDI program` had been seen). A melody that changed key in its
+    last bar changed every drum hit from bar 1. Now a drum is the note written, with the
+    accidentals written in its bar and nothing else: header, staff and inline keys are ignored
+    for the sound. The notation is unchanged. Tests: `tests/synth/perc-key.test.js`.
 
 ### The tuplet duration fix
 
@@ -103,6 +113,8 @@ after it late. Audio and MIDI only — notation and the cursor were always corre
 | `fix/part-order-playback` | tag `v6.7.0-tuplet.10` | `.10` plus the header's play order in playback, and `hidePartOrder`. Tag `v6.7.0-tuplet.11`. |
 | `fix/part-order-labels` | tag `v6.7.0-tuplet.11` | `.11` with an unplayable order ignored silently, and a body `P:` that is not one capital letter a label, not a part. Tag `v6.7.0-tuplet.12`. |
 | `feat/windows` | tag `v6.7.0-tuplet.12` | `.12` plus the sound in windows and the timeline player. Tag `v6.7.0-tuplet.13`. |
+| `fix/breath-after-note` | tag `v6.7.0-tuplet.13` | `.13` plus `!breath!` drawn after its note. Tag `v6.7.0-tuplet.14`. |
+| `fix/perc-no-key` | tag `v6.7.0-tuplet.14` | `.14` plus a percussion staff taking no key. Tag `v6.7.0-tuplet.15`. |
 | `gh-pages-1117` | orphan | The demo page published to GitHub Pages. Not mergeable anywhere; exists only to be served. |
 | `main` | upstream `main` + this file | Fork landing page. Deliberately one commit ahead of upstream so this note is visible. |
 
@@ -112,7 +124,7 @@ Pin a **tag**, never the branch — a branch reference means a later `npm instal
 picks up whatever has been pushed since.
 
 ```json
-"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.13.tar.gz"
+"abcjs": "https://github.com/cormacusscripsit/abcjs/archive/refs/tags/v6.7.0-tuplet.15.tar.gz"
 ```
 
 The tags are not all on one branch (see the table above): find the newest with
